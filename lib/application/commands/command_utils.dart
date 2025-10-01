@@ -1,6 +1,7 @@
 import '../../domain/cell.dart';
 import '../../domain/sheet.dart';
 import '../../domain/workbook.dart';
+import '../../domain/workbook_page.dart';
 
 List<List<Cell>> cloneSheetRows(Sheet sheet) {
   final sourceRows = sheet.rows;
@@ -38,13 +39,29 @@ List<List<Cell>> normaliseCellCoordinates(List<List<Cell>> rows) {
   }
   return rows;
 }
-Workbook replaceSheet(Workbook workbook, int sheetIndex, Sheet newSheet) {
-  final target = workbook.sheets[sheetIndex];
+Workbook replacePage(
+  Workbook workbook,
+  int pageIndex,
+  WorkbookPage newPage,
+) {
+  if (pageIndex < 0 || pageIndex >= workbook.pages.length) {
+    throw RangeError.index(pageIndex, workbook.pages, 'pageIndex');
+  }
   final pages = workbook.pages.toList(growable: true);
-  final pageIndex = pages.indexOf(target);
-  assert(pageIndex != -1, 'Sheet must exist in workbook pages.');
-  pages[pageIndex] = newSheet;
+  pages[pageIndex] = newPage;
   return Workbook(pages: pages);
+}
+
+Workbook replaceSheetAtPageIndex(
+  Workbook workbook,
+  int pageIndex,
+  Sheet newSheet,
+) {
+  final page = workbook.pages[pageIndex];
+  if (page is! Sheet) {
+    throw StateError('The page at index $pageIndex is not a Sheet.');
+  }
+  return replacePage(workbook, pageIndex, newSheet);
 }
 
 Sheet rebuildSheetFromRows(Sheet template, List<List<Cell>> rows) {

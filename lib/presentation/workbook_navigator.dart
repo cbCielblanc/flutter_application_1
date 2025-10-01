@@ -33,8 +33,11 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   @override
   void initState() {
     super.initState();
-    _currentPageIndex = _manager.activeSheetIndex;
-    _pageController = PageController(initialPage: _currentPageIndex);
+    final initialSheetIndex = _manager.activeSheetIndex;
+    _currentPageIndex = initialSheetIndex;
+    _pageController = PageController(
+      initialPage: initialSheetIndex < 0 ? 0 : initialSheetIndex,
+    );
     _manager.addListener(_handleManagerChanged);
   }
 
@@ -43,9 +46,12 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.commandManager != widget.commandManager) {
       oldWidget.commandManager.removeListener(_handleManagerChanged);
-      _currentPageIndex = widget.commandManager.activeSheetIndex;
+      final newIndex = widget.commandManager.activeSheetIndex;
+      _currentPageIndex = newIndex;
       _pageController.dispose();
-      _pageController = PageController(initialPage: _currentPageIndex);
+      _pageController = PageController(
+        initialPage: newIndex < 0 ? 0 : newIndex,
+      );
       widget.commandManager.addListener(_handleManagerChanged);
     }
   }
@@ -72,19 +78,27 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   }
 
   void _jumpToSheet(int index) {
+    if (index < 0) {
+      return;
+    }
+    final sheetCount = _manager.workbook.sheets.length;
+    if (sheetCount == 0) {
+      return;
+    }
+    final targetIndex = index >= sheetCount ? sheetCount - 1 : index;
     if (!_pageController.hasClients) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          _pageController.jumpToPage(index);
+          _pageController.jumpToPage(targetIndex);
         }
       });
       return;
     }
-    if (_pageController.page?.round() == index) {
+    if (_pageController.page?.round() == targetIndex) {
       return;
     }
     _pageController.animateToPage(
-      index,
+      targetIndex,
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
     );

@@ -24,6 +24,11 @@ class InsertRowCommand extends WorkbookCommand {
       return WorkbookCommandResult(workbook: context.workbook);
     }
 
+    final pageIndex = context.pageIndexOf(sheet);
+    if (pageIndex == null) {
+      return WorkbookCommandResult(workbook: context.workbook);
+    }
+
     final rows = cloneSheetRows(sheet);
     final desiredIndex = rowIndex ?? rows.length;
     final insertIndex = desiredIndex < 0
@@ -37,8 +42,11 @@ class InsertRowCommand extends WorkbookCommand {
 
     final updatedSheet = rebuildSheetFromRows(sheet, normalisedRows);
     final Workbook updatedWorkbook =
-        replaceSheet(context.workbook, context.activeSheetIndex, updatedSheet);
+        replaceSheetAtPageIndex(context.workbook, pageIndex, updatedSheet);
 
-    return WorkbookCommandResult(workbook: updatedWorkbook);
+    return WorkbookCommandResult(
+      workbook: updatedWorkbook,
+      activePageIndex: context.activePageIndex,
+    );
   }
 }

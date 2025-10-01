@@ -23,6 +23,11 @@ class PopulateSampleDataCommand extends WorkbookCommand {
       return WorkbookCommandResult(workbook: context.workbook);
     }
 
+    final pageIndex = context.pageIndexOf(sheet);
+    if (pageIndex == null) {
+      return WorkbookCommandResult(workbook: context.workbook);
+    }
+
     const sample = <List<Object?>>[
       ['Nom', 'Âge', 'Ville', 'Profession'],
       ['Alice', 29, 'Paris', 'Designer'],
@@ -48,8 +53,11 @@ class PopulateSampleDataCommand extends WorkbookCommand {
 
     final updatedSheet = rebuildSheetFromRows(sheet, rows);
     final Workbook updatedWorkbook =
-        replaceSheet(context.workbook, context.activeSheetIndex, updatedSheet);
+        replaceSheetAtPageIndex(context.workbook, pageIndex, updatedSheet);
 
-    return WorkbookCommandResult(workbook: updatedWorkbook);
+    return WorkbookCommandResult(
+      workbook: updatedWorkbook,
+      activePageIndex: context.activePageIndex,
+    );
   }
 }

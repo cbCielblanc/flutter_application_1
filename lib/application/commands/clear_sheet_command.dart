@@ -23,6 +23,11 @@ class ClearSheetCommand extends WorkbookCommand {
       return WorkbookCommandResult(workbook: context.workbook);
     }
 
+    final pageIndex = context.pageIndexOf(sheet);
+    if (pageIndex == null) {
+      return WorkbookCommandResult(workbook: context.workbook);
+    }
+
     final rows = cloneSheetRows(sheet);
     for (var r = 0; r < rows.length; r++) {
       final row = rows[r];
@@ -33,8 +38,11 @@ class ClearSheetCommand extends WorkbookCommand {
 
     final updatedSheet = rebuildSheetFromRows(sheet, rows);
     final Workbook updatedWorkbook =
-        replaceSheet(context.workbook, context.activeSheetIndex, updatedSheet);
+        replaceSheetAtPageIndex(context.workbook, pageIndex, updatedSheet);
 
-    return WorkbookCommandResult(workbook: updatedWorkbook);
+    return WorkbookCommandResult(
+      workbook: updatedWorkbook,
+      activePageIndex: context.activePageIndex,
+    );
   }
 }
