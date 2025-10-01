@@ -1,40 +1,46 @@
-import '../../domain/sheet.dart';
+import '../../domain/cell.dart';
 import '../../domain/workbook.dart';
 import 'command_utils.dart';
 import 'workbook_command.dart';
 
-class InsertRowCommand extends WorkbookCommand {
-  const InsertRowCommand({this.rowIndex});
+class InsertColumnCommand extends WorkbookCommand {
+  const InsertColumnCommand({this.columnIndex});
 
-  final int? rowIndex;
+  final int? columnIndex;
 
   @override
-  String get label => 'Insérer une ligne';
+  String get label => 'Insérer une colonne';
 
   @override
   bool canExecute(WorkbookCommandContext context) {
-    final sheet = context.activeSheet;
-    return sheet != null;
+    return context.activeSheet != null;
   }
 
   @override
   WorkbookCommandResult execute(WorkbookCommandContext context) {
     final sheet = context.activeSheet;
-    if (sheet == null) {=
+    if (sheet == null) {
       return WorkbookCommandResult(workbook: context.workbook);
     }
 
     final rows = cloneSheetRows(sheet);
-    final desiredIndex = rowIndex ?? rows.length;
+    final existingColumnCount = sheet.columnCount;
+    final desiredIndex = columnIndex ?? existingColumnCount;
     final insertIndex = desiredIndex < 0
         ? 0
-        : desiredIndex > rows.length
-            ? rows.length
+        : desiredIndex > existingColumnCount
+            ? existingColumnCount
             : desiredIndex;
-    final newRow = buildEmptyRow(insertIndex, sheet.columnCount);
-    rows.insert(insertIndex, newRow);
-    final normalisedRows = normaliseCellCoordinates(rows);
 
+    for (var r = 0; r < rows.length; r++) {
+      final row = rows[r];
+      row.insert(
+        insertIndex,
+        Cell(row: r, column: insertIndex, type: CellType.empty, value: null),
+      );
+    }
+
+    final normalisedRows = normaliseCellCoordinates(rows);
     final updatedSheet = rebuildSheetFromRows(sheet, normalisedRows);
     final Workbook updatedWorkbook =
         replaceSheet(context.workbook, context.activeSheetIndex, updatedSheet);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../application/commands/add_sheet_command.dart';
 import '../../application/commands/clear_sheet_command.dart';
+import '../../application/commands/insert_column_command.dart';
 import '../../application/commands/insert_row_command.dart';
 import '../../application/commands/populate_sample_data_command.dart';
 import '../../application/commands/remove_sheet_command.dart';
@@ -17,6 +18,7 @@ class CommandRibbon extends StatelessWidget {
   static const List<WorkbookCommand> _editionCommands = <WorkbookCommand>[
     AddSheetCommand(),
     InsertRowCommand(),
+    InsertColumnCommand(),
     RemoveSheetCommand(),
   ];
 
