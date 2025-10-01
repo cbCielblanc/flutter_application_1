@@ -20,7 +20,7 @@ class InsertRowCommand extends WorkbookCommand {
   @override
   WorkbookCommandResult execute(WorkbookCommandContext context) {
     final sheet = context.activeSheet;
-    if (sheet == null) {
+    if (sheet == null) {=
       return WorkbookCommandResult(workbook: context.workbook);
     }
 

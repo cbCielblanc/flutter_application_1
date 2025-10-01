@@ -38,7 +38,6 @@ List<List<Cell>> normaliseCellCoordinates(List<List<Cell>> rows) {
   }
   return rows;
 }
-
 Workbook replaceSheet(Workbook workbook, int sheetIndex, Sheet newSheet) {
   final sheets = workbook.sheets.toList(growable: true);
   sheets[sheetIndex] = newSheet;
