@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 
+import '../../domain/sheet.dart';
 import '../../domain/workbook.dart';
+import '../../domain/workbook_page.dart';
 import '../../services/history_service.dart';
 import 'workbook_command.dart';
 
@@ -12,28 +14,52 @@ class WorkbookCommandManager extends ChangeNotifier {
         _history = historyService ?? HistoryService<WorkbookCommand>();
 
   Workbook _workbook;
-  int _activeSheetIndex = 0;
+  int _activePageIndex = 0;
   final HistoryService<WorkbookCommand> _history;
 
   Workbook get workbook => _workbook;
-  int get activeSheetIndex => _activeSheetIndex;
+  int get activePageIndex => _activePageIndex;
+  WorkbookPage? get activePage =>
+      _workbook.pages.isEmpty ? null : _workbook.pages[_activePageIndex];
+  int get activeSheetIndex {
+    final page = activePage;
+    if (page is Sheet) {
+      final index = _workbook.sheets.indexOf(page);
+      if (index != -1) {
+        return index;
+      }
+    }
+    return -1;
+  }
   bool get canUndo => _history.canUndo;
   bool get canRedo => _history.canRedo;
   HistoryService<WorkbookCommand> get history => _history;
 
   WorkbookCommandContext get context => WorkbookCommandContext(
         workbook: _workbook,
-        activeSheetIndex: _activeSheetIndex,
+        activePageIndex: _activePageIndex,
       );
 
   void setActiveSheet(int index) {
-    if (index == _activeSheetIndex) {
-      return;
-    }
     if (index < 0 || index >= _workbook.sheets.length) {
       return;
     }
-    _activeSheetIndex = index;
+    final sheet = _workbook.sheets[index];
+    final pageIndex = _workbook.pages.indexOf(sheet);
+    if (pageIndex == -1) {
+      return;
+    }
+    setActivePage(pageIndex);
+  }
+
+  void setActivePage(int index) {
+    if (index == _activePageIndex) {
+      return;
+    }
+    if (index < 0 || index >= _workbook.pages.length) {
+      return;
+    }
+    _activePageIndex = index;
     notifyListeners();
   }
 
@@ -79,20 +105,27 @@ class WorkbookCommandManager extends ChangeNotifier {
 
   bool _applyResult(WorkbookCommandResult result) {
     final previousWorkbook = _workbook;
-    final previousIndex = _activeSheetIndex;
+    final previousIndex = _activePageIndex;
     if (!identical(result.workbook, _workbook)) {
       _workbook = result.workbook;
     }
 
-    final desiredIndex = result.activeSheetIndex;
-    if (desiredIndex != null && desiredIndex != _activeSheetIndex) {
-      _activeSheetIndex = desiredIndex;
-    } else if (_activeSheetIndex >= _workbook.sheets.length) {
-      _activeSheetIndex = _workbook.sheets.length - 1;
+    final desiredIndex = result.activePageIndex;
+    if (desiredIndex != null && desiredIndex != _activePageIndex) {
+      final maxIndex = _workbook.pages.length - 1;
+      final boundedIndex = desiredIndex < 0
+          ? 0
+          : desiredIndex > maxIndex
+              ? maxIndex
+              : desiredIndex;
+      _activePageIndex = boundedIndex;
+    } else if (_activePageIndex >= _workbook.pages.length) {
+      final maxIndex = _workbook.pages.length - 1;
+      _activePageIndex = maxIndex < 0 ? 0 : maxIndex;
     }
 
     final hasWorkbookChanged = !identical(previousWorkbook, _workbook);
-    final hasIndexChanged = previousIndex != _activeSheetIndex;
+    final hasIndexChanged = previousIndex != _activePageIndex;
     return hasWorkbookChanged || hasIndexChanged;
   }
 }

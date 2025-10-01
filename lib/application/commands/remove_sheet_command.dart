@@ -13,31 +13,38 @@ class RemoveSheetCommand extends WorkbookCommand {
 
   @override
   bool canExecute(WorkbookCommandContext context) {
+    if (context.workbook.pages.length <= 1) {
+      return false;
+    }
     final index = sheetIndex ?? context.activeSheetIndex;
-    return context.workbook.sheets.length > 1 &&
+    return index != null &&
         index >= 0 &&
         index < context.workbook.sheets.length;
   }
 
   @override
   WorkbookCommandResult performExecute(WorkbookCommandContext context) {
-    final index = sheetIndex ?? context.activeSheetIndex;
+    final tabIndex = sheetIndex ?? context.activeSheetIndex;
+    if (tabIndex == null) {
+      return WorkbookCommandResult(workbook: context.workbook);
+    }
     if (!canExecute(context)) {
       return WorkbookCommandResult(workbook: context.workbook);
     }
 
-    final sheet = context.workbook.sheets[index];
+    final sheet = context.workbook.sheets[tabIndex];
     final pages = context.workbook.pages.toList(growable: true);
     final pageIndex = pages.indexOf(sheet);
     assert(pageIndex != -1, 'Sheet must exist in workbook pages.');
     pages.removeAt(pageIndex);
     final updatedWorkbook = Workbook(pages: pages);
 
-    final newActiveIndex = index.clamp(0, updatedWorkbook.sheets.length - 1);
+    final maxIndex = updatedWorkbook.pages.length - 1;
+    final newActiveIndex = pageIndex > maxIndex ? maxIndex : pageIndex;
 
     return WorkbookCommandResult(
       workbook: updatedWorkbook,
-      activeSheetIndex: newActiveIndex,
+      activePageIndex: newActiveIndex,
     );
   }
 }
