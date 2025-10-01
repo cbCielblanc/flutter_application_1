@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../application/commands/add_sheet_command.dart';
+import '../application/commands/remove_sheet_command.dart';
+import '../application/commands/workbook_command_manager.dart';
+import '../domain/workbook.dart';
 import '../state/sheet_selection_state.dart';
+import 'widgets/command_ribbon.dart';
 import 'widgets/formula_bar.dart';
 import 'widgets/sheet_grid.dart';
 import 'widgets/sheet_tab_bar.dart';
@@ -8,48 +13,61 @@ import 'widgets/sheet_tab_bar.dart';
 class WorkbookNavigator extends StatefulWidget {
   const WorkbookNavigator({
     super.key,
-    required this.sheets,
-    required this.selectedSheetIndex,
-    required this.onSheetSelected,
-    required this.onAddSheet,
-    required this.onRemoveSheet,
+    required this.commandManager,
   });
 
-  final List<String> sheets;
-  final int selectedSheetIndex;
-  final ValueChanged<int> onSheetSelected;
-  final VoidCallback onAddSheet;
-  final ValueChanged<int> onRemoveSheet;
+  final WorkbookCommandManager commandManager;
 
   @override
   State<WorkbookNavigator> createState() => _WorkbookNavigatorState();
 }
 
 class _WorkbookNavigatorState extends State<WorkbookNavigator> {
-  late final PageController _pageController;
+  late PageController _pageController;
   final Map<String, SheetSelectionState> _selectionStates =
       <String, SheetSelectionState>{};
   late int _currentPageIndex;
 
+  WorkbookCommandManager get _manager => widget.commandManager;
+
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: widget.selectedSheetIndex);
-    _currentPageIndex = widget.selectedSheetIndex;
+    _currentPageIndex = _manager.activeSheetIndex;
+    _pageController = PageController(initialPage: _currentPageIndex);
+    _manager.addListener(_handleManagerChanged);
   }
 
   @override
   void didUpdateWidget(covariant WorkbookNavigator oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.selectedSheetIndex != oldWidget.selectedSheetIndex) {
-      _jumpToSheet(widget.selectedSheetIndex);
-      _currentPageIndex = widget.selectedSheetIndex;
+    if (oldWidget.commandManager != widget.commandManager) {
+      oldWidget.commandManager.removeListener(_handleManagerChanged);
+      _currentPageIndex = widget.commandManager.activeSheetIndex;
+      _pageController.dispose();
+      _pageController = PageController(initialPage: _currentPageIndex);
+      widget.commandManager.addListener(_handleManagerChanged);
     }
-    final removedSheets = oldWidget.sheets
-        .where((sheet) => !widget.sheets.contains(sheet))
-        .toList();
+  }
+
+  void _handleManagerChanged() {
+    final workbook = _manager.workbook;
+    final sheets = workbook.sheets;
+
+    final removedSheets = _selectionStates.keys
+        .where((name) => sheets.every((sheet) => sheet.name != name))
+        .toList(growable: false);
     for (final sheet in removedSheets) {
       _selectionStates.remove(sheet)?.dispose();
+    }
+
+    final newIndex = _manager.activeSheetIndex;
+    if (newIndex != _currentPageIndex) {
+      if (_currentPageIndex >= 0 && _currentPageIndex < sheets.length) {
+        _commitEditsForSheet(sheets[_currentPageIndex].name);
+      }
+      _currentPageIndex = newIndex;
+      _jumpToSheet(newIndex);
     }
   }
 
@@ -74,6 +92,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
 
   @override
   void dispose() {
+    _manager.removeListener(_handleManagerChanged);
     _pageController.dispose();
     for (final state in _selectionStates.values) {
       state.dispose();
@@ -81,8 +100,12 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     super.dispose();
   }
 
-  SheetSelectionState _stateForSheet(String sheetName) {
-    return _selectionStates.putIfAbsent(sheetName, SheetSelectionState.new);
+  SheetSelectionState _stateForSheet(Workbook workbook, int sheetIndex) {
+    final sheet = workbook.sheets[sheetIndex];
+    final state =
+        _selectionStates.putIfAbsent(sheet.name, SheetSelectionState.new);
+    state.syncFromSheet(sheet);
+    return state;
   }
 
   void _commitEditsForSheet(String sheetName) {
@@ -91,96 +114,110 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   }
 
   void _handleSelectSheet(int index) {
-    final sheets = widget.sheets;
-    if (index < 0 || index >= sheets.length) {
+    final workbook = _manager.workbook;
+    if (index < 0 || index >= workbook.sheets.length) {
       return;
     }
-    if (_currentPageIndex >= 0 && _currentPageIndex < sheets.length) {
-      _commitEditsForSheet(sheets[_currentPageIndex]);
+    if (_currentPageIndex >= 0 && _currentPageIndex < workbook.sheets.length) {
+      _commitEditsForSheet(workbook.sheets[_currentPageIndex].name);
     }
-    widget.onSheetSelected(index);
+    _manager.setActiveSheet(index);
   }
 
   void _handleAddSheet() {
-    final sheets = widget.sheets;
-    if (_currentPageIndex >= 0 && _currentPageIndex < sheets.length) {
-      _commitEditsForSheet(sheets[_currentPageIndex]);
+    final workbook = _manager.workbook;
+    if (_currentPageIndex >= 0 && _currentPageIndex < workbook.sheets.length) {
+      _commitEditsForSheet(workbook.sheets[_currentPageIndex].name);
     }
-    widget.onAddSheet();
+    _manager.execute(const AddSheetCommand());
   }
 
   void _handleRemoveSheet(int index) {
-    final sheets = widget.sheets;
-    if (index < 0 || index >= sheets.length) {
+    final workbook = _manager.workbook;
+    if (index < 0 || index >= workbook.sheets.length) {
       return;
     }
-    final sheetName = sheets[index];
+    final sheetName = workbook.sheets[index].name;
     _selectionStates.remove(sheetName)?.dispose();
-    widget.onRemoveSheet(index);
+    _manager.execute(RemoveSheetCommand(sheetIndex: index));
   }
 
   @override
   Widget build(BuildContext context) {
-    final sheets = widget.sheets;
-    return Column(
-      children: [
-        SheetTabBar(
-          sheets: sheets,
-          selectedIndex: widget.selectedSheetIndex,
-          onSelectSheet: _handleSelectSheet,
-          onAddSheet: _handleAddSheet,
-          onRemoveSheet: _handleRemoveSheet,
-        ),
-        Expanded(
-          child: sheets.isEmpty
-              ? const Center(child: Text('Aucune feuille disponible'))
-              : PageView.builder(
-                  controller: _pageController,
-                  itemCount: sheets.length,
-                  onPageChanged: (index) {
-                    if (_currentPageIndex >= 0 &&
-                        _currentPageIndex < sheets.length) {
-                      _commitEditsForSheet(sheets[_currentPageIndex]);
-                    }
-                    _currentPageIndex = index;
-                    widget.onSheetSelected(index);
-                  },
-                  itemBuilder: (context, index) {
-                    final sheetName = sheets[index];
-                    final selectionState = _stateForSheet(sheetName);
-                    return Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          FormulaBar(selectionState: selectionState),
-                          const SizedBox(height: 16),
-                          Expanded(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                color: Theme.of(context).colorScheme.surface,
-                                border: Border.all(
-                                  color: Theme.of(context)
-                                      .dividerColor
-                                      .withOpacity(0.4),
+    return AnimatedBuilder(
+      animation: _manager,
+      builder: (context, _) {
+        final workbook = _manager.workbook;
+        final sheets = workbook.sheets;
+
+        return Column(
+          children: [
+            CommandRibbon(commandManager: _manager),
+            SheetTabBar(
+              sheets: [for (final sheet in sheets) sheet.name],
+              selectedIndex: _manager.activeSheetIndex,
+              onSelectSheet: _handleSelectSheet,
+              onAddSheet: _handleAddSheet,
+              onRemoveSheet: _handleRemoveSheet,
+            ),
+            Expanded(
+              child: sheets.isEmpty
+                  ? const Center(child: Text('Aucune feuille disponible'))
+                  : PageView.builder(
+                      controller: _pageController,
+                      itemCount: sheets.length,
+                      onPageChanged: (index) {
+                        final currentSheets = _manager.workbook.sheets;
+                        if (_currentPageIndex >= 0 &&
+                            _currentPageIndex < currentSheets.length) {
+                          _commitEditsForSheet(
+                              currentSheets[_currentPageIndex].name);
+                        }
+                        _currentPageIndex = index;
+                        _manager.setActiveSheet(index);
+                      },
+                      itemBuilder: (context, index) {
+                        final sheet = sheets[index];
+                        final selectionState =
+                            _stateForSheet(workbook, index);
+                        return Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              FormulaBar(selectionState: selectionState),
+                              const SizedBox(height: 16),
+                              Expanded(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    color:
+                                        Theme.of(context).colorScheme.surface,
+                                    border: Border.all(
+                                      color: Theme.of(context)
+                                          .dividerColor
+                                          .withOpacity(0.4),
+                                    ),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: SheetGrid(
+                                      selectionState: selectionState,
+                                      rowCount: sheet.rowCount,
+                                      columnCount: sheet.columnCount,
+                                    ),
+                                  ),
                                 ),
                               ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: SheetGrid(
-                                  selectionState: selectionState,
-                                ),
-                              ),
-                            ),
+                            ],
                           ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
