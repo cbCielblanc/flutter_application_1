@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'application/commands/workbook_command_manager.dart';
+import 'domain/cell.dart';
+import 'domain/sheet.dart';
+import 'domain/workbook.dart';
 import 'presentation/workbook_navigator.dart';
 
 void main() {
@@ -14,34 +18,36 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  final List<String> _sheets = ['Feuille 1'];
-  int _selectedSheetIndex = 0;
-  int _nextSheetNumber = 2;
+  late final WorkbookCommandManager _commandManager;
 
-  void _handleSelectSheet(int index) {
-    setState(() {
-      _selectedSheetIndex = index;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _commandManager = WorkbookCommandManager(
+      initialWorkbook: _createInitialWorkbook(),
+    );
   }
 
-  void _handleAddSheet() {
-    setState(() {
-      _sheets.add('Feuille $_nextSheetNumber');
-      _nextSheetNumber += 1;
-      _selectedSheetIndex = _sheets.length - 1;
-    });
+  @override
+  void dispose() {
+    _commandManager.dispose();
+    super.dispose();
   }
 
-  void _handleRemoveSheet(int index) {
-    if (_sheets.length == 1) {
-      return;
-    }
-    setState(() {
-      _sheets.removeAt(index);
-      if (_selectedSheetIndex >= _sheets.length) {
-        _selectedSheetIndex = _sheets.length - 1;
-      }
-    });
+  Workbook _createInitialWorkbook() {
+    const rowCount = 20;
+    const columnCount = 8;
+    final rows = List<List<Cell>>.generate(
+      rowCount,
+      (row) => List<Cell>.generate(
+        columnCount,
+        (column) =>
+            Cell(row: row, column: column, type: CellType.empty, value: null),
+      ),
+      growable: false,
+    );
+    final sheet = Sheet(name: 'Feuille 1', rows: rows);
+    return Workbook(sheets: [sheet]);
   }
 
   @override
@@ -57,11 +63,7 @@ class _MyAppState extends State<MyApp> {
           title: const Text('Classeur'),
         ),
         body: WorkbookNavigator(
-          sheets: List.unmodifiable(_sheets),
-          selectedSheetIndex: _selectedSheetIndex,
-          onSheetSelected: _handleSelectSheet,
-          onAddSheet: _handleAddSheet,
-          onRemoveSheet: _handleRemoveSheet,
+          commandManager: _commandManager,
         ),
       ),
     );

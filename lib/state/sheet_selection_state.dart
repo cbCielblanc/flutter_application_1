@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../domain/sheet.dart';
+
 /// Represents the zero-based position of a cell in the sheet grid.
 @immutable
 class CellPosition {
@@ -94,6 +96,52 @@ class SheetSelectionState extends ChangeNotifier {
     if (hadSelection || didWrite) {
       notifyListeners();
     }
+  }
+
+  /// Synchronises the internal cache with the content of [sheet].
+  void syncFromSheet(Sheet sheet) {
+    final nextValues = <CellPosition, String>{};
+    for (var r = 0; r < sheet.rows.length; r++) {
+      final row = sheet.rows[r];
+      for (var c = 0; c < row.length; c++) {
+        final cell = row[c];
+        final value = cell.value;
+        if (value == null) {
+          continue;
+        }
+        final text = value.toString();
+        if (text.isEmpty) {
+          continue;
+        }
+        nextValues[CellPosition(r, c)] = text;
+      }
+    }
+
+    final active = _activeCell;
+    final isSame = mapEquals(_cellValues, nextValues);
+    final activeOutOfRange = active != null &&
+        (active.row >= sheet.rowCount || active.column >= sheet.columnCount);
+    final newEditingValue = active != null ? (nextValues[active] ?? '') : '';
+    final editingChanged = active != null && newEditingValue != _editingValue;
+
+    if (isSame && !activeOutOfRange && !editingChanged) {
+      return;
+    }
+
+    _cellValues
+      ..clear()
+      ..addAll(nextValues);
+
+    if (activeOutOfRange) {
+      _activeCell = null;
+      _editingValue = '';
+    } else if (active != null) {
+      _editingValue = newEditingValue;
+    } else {
+      _editingValue = '';
+    }
+
+    notifyListeners();
   }
 
   bool _writeEditingValueToActiveCell() {
