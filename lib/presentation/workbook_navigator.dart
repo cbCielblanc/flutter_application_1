@@ -129,7 +129,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     if (_currentPageIndex >= 0 && _currentPageIndex < workbook.sheets.length) {
       _commitEditsForSheet(workbook.sheets[_currentPageIndex].name);
     }
-    _manager.execute(const AddSheetCommand());
+    _manager.execute(AddSheetCommand());
   }
 
   void _handleRemoveSheet(int index) {

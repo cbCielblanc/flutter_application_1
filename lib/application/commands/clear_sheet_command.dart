@@ -5,7 +5,7 @@ import 'command_utils.dart';
 import 'workbook_command.dart';
 
 class ClearSheetCommand extends WorkbookCommand {
-  const ClearSheetCommand();
+  ClearSheetCommand();
 
   @override
   String get label => 'Effacer les données';
@@ -17,7 +17,7 @@ class ClearSheetCommand extends WorkbookCommand {
   }
 
   @override
-  WorkbookCommandResult execute(WorkbookCommandContext context) {
+  WorkbookCommandResult performExecute(WorkbookCommandContext context) {
     final sheet = context.activeSheet;
     if (sheet == null) {
       return WorkbookCommandResult(workbook: context.workbook);

@@ -41,7 +41,7 @@ class WorkbookCommandResult {
 
 /// Base contract for all commands mutating the [Workbook].
 abstract class WorkbookCommand {
-  const WorkbookCommand();
+  WorkbookCommand();
 
   /// Human readable label used by ribbon buttons.
   String get label;
@@ -50,5 +50,26 @@ abstract class WorkbookCommand {
   bool canExecute(WorkbookCommandContext context) => true;
 
   /// Executes the command and returns the resulting workbook state.
-  WorkbookCommandResult execute(WorkbookCommandContext context);
+  WorkbookCommandResult execute(WorkbookCommandContext context) {
+    _previousState = WorkbookCommandResult(
+      workbook: context.workbook,
+      activeSheetIndex: context.activeSheetIndex,
+    );
+    return performExecute(context);
+  }
+
+  /// Performs the actual mutation for the command.
+  @protected
+  WorkbookCommandResult performExecute(WorkbookCommandContext context);
+
+  /// Reverts the command to its previous state.
+  WorkbookCommandResult unexecute() {
+    final previous = _previousState;
+    if (previous == null) {
+      throw StateError('Cannot unexecute a command that was never executed.');
+    }
+    return previous;
+  }
+
+  WorkbookCommandResult? _previousState;
 }

@@ -5,7 +5,7 @@ import 'command_utils.dart';
 import 'workbook_command.dart';
 
 class UppercaseHeaderCommand extends WorkbookCommand {
-  const UppercaseHeaderCommand();
+  UppercaseHeaderCommand();
 
   @override
   String get label => 'Entêtes en majuscules';
@@ -17,7 +17,7 @@ class UppercaseHeaderCommand extends WorkbookCommand {
   }
 
   @override
-  WorkbookCommandResult execute(WorkbookCommandContext context) {
+  WorkbookCommandResult performExecute(WorkbookCommandContext context) {
     final sheet = context.activeSheet;
     if (sheet == null || sheet.rowCount == 0) {
       return WorkbookCommandResult(workbook: context.workbook);

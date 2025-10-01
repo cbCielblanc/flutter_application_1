@@ -5,7 +5,7 @@ import 'command_utils.dart';
 import 'workbook_command.dart';
 
 class PopulateSampleDataCommand extends WorkbookCommand {
-  const PopulateSampleDataCommand();
+  PopulateSampleDataCommand();
 
   @override
   String get label => 'Données d\'exemple';
@@ -17,7 +17,7 @@ class PopulateSampleDataCommand extends WorkbookCommand {
   }
 
   @override
-  WorkbookCommandResult execute(WorkbookCommandContext context) {
+  WorkbookCommandResult performExecute(WorkbookCommandContext context) {
     final sheet = context.activeSheet;
     if (sheet == null) {
       return WorkbookCommandResult(workbook: context.workbook);

@@ -4,7 +4,7 @@ import 'command_utils.dart';
 import 'workbook_command.dart';
 
 class InsertColumnCommand extends WorkbookCommand {
-  const InsertColumnCommand({this.columnIndex});
+  InsertColumnCommand({this.columnIndex});
 
   final int? columnIndex;
 
@@ -17,7 +17,7 @@ class InsertColumnCommand extends WorkbookCommand {
   }
 
   @override
-  WorkbookCommandResult execute(WorkbookCommandContext context) {
+  WorkbookCommandResult performExecute(WorkbookCommandContext context) {
     final sheet = context.activeSheet;
     if (sheet == null) {
       return WorkbookCommandResult(workbook: context.workbook);

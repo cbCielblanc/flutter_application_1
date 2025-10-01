@@ -1,17 +1,25 @@
 import 'package:flutter/foundation.dart';
 
 import '../../domain/workbook.dart';
+import '../../services/history_service.dart';
 import 'workbook_command.dart';
 
 class WorkbookCommandManager extends ChangeNotifier {
-  WorkbookCommandManager({required Workbook initialWorkbook})
-      : _workbook = initialWorkbook;
+  WorkbookCommandManager({
+    required Workbook initialWorkbook,
+    HistoryService<WorkbookCommand>? historyService,
+  })  : _workbook = initialWorkbook,
+        _history = historyService ?? HistoryService<WorkbookCommand>();
 
   Workbook _workbook;
   int _activeSheetIndex = 0;
+  final HistoryService<WorkbookCommand> _history;
 
   Workbook get workbook => _workbook;
   int get activeSheetIndex => _activeSheetIndex;
+  bool get canUndo => _history.canUndo;
+  bool get canRedo => _history.canRedo;
+  HistoryService<WorkbookCommand> get history => _history;
 
   WorkbookCommandContext get context => WorkbookCommandContext(
         workbook: _workbook,
@@ -29,30 +37,62 @@ class WorkbookCommandManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  void execute(WorkbookCommand command) {
+  bool execute(WorkbookCommand command, {bool recordHistory = true}) {
     final commandContext = context;
     if (!command.canExecute(commandContext)) {
-      return;
+      return false;
     }
 
     final result = command.execute(commandContext);
-    var shouldNotify = false;
+    final changed = _applyResult(result);
+    if (recordHistory && changed) {
+      _history.pushExecuted(command);
+    }
+    if (changed) {
+      notifyListeners();
+    }
+    return changed;
+  }
+
+  void undo() {
+    final command = _history.popUndo();
+    if (command == null) {
+      return;
+    }
+
+    final result = command.unexecute();
+    _applyResult(result);
+    notifyListeners();
+  }
+
+  void redo() {
+    final command = _history.popRedo();
+    if (command == null) {
+      return;
+    }
+
+    final changed = execute(command, recordHistory: false);
+    if (!changed) {
+      notifyListeners();
+    }
+  }
+
+  bool _applyResult(WorkbookCommandResult result) {
+    final previousWorkbook = _workbook;
+    final previousIndex = _activeSheetIndex;
     if (!identical(result.workbook, _workbook)) {
       _workbook = result.workbook;
-      shouldNotify = true;
     }
 
     final desiredIndex = result.activeSheetIndex;
     if (desiredIndex != null && desiredIndex != _activeSheetIndex) {
       _activeSheetIndex = desiredIndex;
-      shouldNotify = true;
     } else if (_activeSheetIndex >= _workbook.sheets.length) {
       _activeSheetIndex = _workbook.sheets.length - 1;
-      shouldNotify = true;
     }
 
-    if (shouldNotify) {
-      notifyListeners();
-    }
+    final hasWorkbookChanged = !identical(previousWorkbook, _workbook);
+    final hasIndexChanged = previousIndex != _activeSheetIndex;
+    return hasWorkbookChanged || hasIndexChanged;
   }
 }
