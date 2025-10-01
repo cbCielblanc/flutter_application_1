@@ -26,9 +26,10 @@ class AddSheetCommand extends WorkbookCommand {
     );
 
     final newSheet = Sheet(name: newSheetName, rows: rows);
-    final sheets = context.workbook.sheets.toList(growable: true)..add(newSheet);
-    final updatedWorkbook = Workbook(sheets: sheets);
-    final newIndex = sheets.length - 1;
+    final pages = context.workbook.pages.toList(growable: true)..add(newSheet);
+    final updatedWorkbook = Workbook(pages: pages);
+    final newIndex = updatedWorkbook.sheets.indexOf(newSheet);
+    assert(newIndex != -1, 'Newly added sheet must be present in workbook.');
 
     return WorkbookCommandResult(
       workbook: updatedWorkbook,

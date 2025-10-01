@@ -80,7 +80,7 @@ Workbook _buildWorkbook(String value) {
       [value],
     ],
   );
-  return Workbook(sheets: [sheet]);
+  return Workbook(pages: [sheet]);
 }
 
 class _ReplaceWorkbookCommand extends WorkbookCommand {

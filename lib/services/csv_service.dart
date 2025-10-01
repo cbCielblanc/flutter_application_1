@@ -114,7 +114,7 @@ class CsvService {
     }
 
     final sheet = Sheet(name: sheetName, rows: normalisedRows);
-    return Workbook(sheets: [sheet]);
+    return Workbook(pages: [sheet]);
   }
 
   /// Persists a [workbook] to [file] using CSV format.
