@@ -43,6 +43,23 @@ class CellPosition {
 
 /// Manages the currently selected cell and the value being edited for a sheet.
 class SheetSelectionState extends ChangeNotifier {
+  SheetSelectionState({ValueChanged<Map<CellPosition, String>>? onValuesChanged})
+      : _onValuesChanged = onValuesChanged;
+
+  ValueChanged<Map<CellPosition, String>>? _onValuesChanged;
+
+  set onValuesChanged(ValueChanged<Map<CellPosition, String>>? callback) {
+    _onValuesChanged = callback;
+  }
+
+  void _emitValuesChanged() {
+    final callback = _onValuesChanged;
+    if (callback == null) {
+      return;
+    }
+    callback(Map<CellPosition, String>.unmodifiable(_cellValues));
+  }
+
   CellPosition? get activeCell => _activeCell;
   CellPosition? _activeCell;
 
@@ -68,6 +85,9 @@ class SheetSelectionState extends ChangeNotifier {
   /// Selects a new [position] and loads its persisted value into the editor.
   void selectCell(CellPosition position) {
     final didWrite = _writeEditingValueToActiveCell();
+    if (didWrite) {
+      _emitValuesChanged();
+    }
     final previousActive = _activeCell;
     _activeCell = position;
 
@@ -83,6 +103,7 @@ class SheetSelectionState extends ChangeNotifier {
   /// Commits the current editing value into the active cell, if any.
   void commitEditingValue() {
     if (_writeEditingValueToActiveCell()) {
+      _emitValuesChanged();
       notifyListeners();
     }
   }
@@ -91,6 +112,9 @@ class SheetSelectionState extends ChangeNotifier {
   void clearSelection() {
     final hadSelection = _activeCell != null || _editingValue.isNotEmpty;
     final didWrite = _writeEditingValueToActiveCell();
+    if (didWrite) {
+      _emitValuesChanged();
+    }
     _activeCell = null;
     _editingValue = '';
     if (hadSelection || didWrite) {

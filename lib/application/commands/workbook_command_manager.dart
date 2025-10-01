@@ -40,6 +40,17 @@ class WorkbookCommandManager extends ChangeNotifier {
         activePageIndex: _activePageIndex,
       );
 
+  void applyExternalUpdate(Workbook workbook, {int? activePageIndex}) {
+    final result = WorkbookCommandResult(
+      workbook: workbook,
+      activePageIndex: activePageIndex ?? _activePageIndex,
+    );
+    final changed = _applyResult(result);
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
   void setActiveSheet(int index) {
     if (index < 0 || index >= _workbook.sheets.length) {
       return;
