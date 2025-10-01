@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../application/commands/add_menu_page_command.dart';
 import '../../application/commands/add_sheet_command.dart';
 import '../../application/commands/clear_sheet_command.dart';
 import '../../application/commands/insert_column_command.dart';
@@ -13,12 +14,18 @@ import '../../application/commands/workbook_command_manager.dart';
 typedef WorkbookCommandBuilder = WorkbookCommand Function();
 
 class CommandRibbon extends StatelessWidget {
-  const CommandRibbon({super.key, required this.commandManager});
+  const CommandRibbon({
+    super.key,
+    required this.commandManager,
+    this.onBeforeCommand,
+  });
 
   final WorkbookCommandManager commandManager;
+  final VoidCallback? onBeforeCommand;
 
   static final List<WorkbookCommandBuilder> _editionCommands =
       <WorkbookCommandBuilder>[
+    () => AddMenuPageCommand(),
     () => AddSheetCommand(),
     () => InsertRowCommand(),
     () => InsertColumnCommand(),
@@ -54,21 +61,27 @@ class CommandRibbon extends StatelessWidget {
                 spacing: 32,
                 runSpacing: 16,
                 children: [
-                  _HistoryGroup(manager: commandManager),
+                  _HistoryGroup(
+                    manager: commandManager,
+                    onBeforeCommand: onBeforeCommand,
+                  ),
                   _CommandGroup(
                     title: 'Édition',
                     commands: _editionCommands,
                     manager: commandManager,
+                    onBeforeCommand: onBeforeCommand,
                   ),
                   _CommandGroup(
                     title: 'Format',
                     commands: _formatCommands,
                     manager: commandManager,
+                    onBeforeCommand: onBeforeCommand,
                   ),
                   _CommandGroup(
                     title: 'Données',
                     commands: _dataCommands,
                     manager: commandManager,
+                    onBeforeCommand: onBeforeCommand,
                   ),
                 ],
               ),
@@ -85,11 +98,13 @@ class _CommandGroup extends StatelessWidget {
     required this.title,
     required this.commands,
     required this.manager,
+    this.onBeforeCommand,
   });
 
   final String title;
   final List<WorkbookCommandBuilder> commands;
   final WorkbookCommandManager manager;
+  final VoidCallback? onBeforeCommand;
 
   @override
   Widget build(BuildContext context) {
@@ -109,7 +124,11 @@ class _CommandGroup extends StatelessWidget {
             runSpacing: 12,
             children: [
               for (final builder in commands)
-                _CommandButton(builder: builder, manager: manager),
+                _CommandButton(
+                  builder: builder,
+                  manager: manager,
+                  onBeforeCommand: onBeforeCommand,
+                ),
             ],
           ),
         ],
@@ -119,10 +138,15 @@ class _CommandGroup extends StatelessWidget {
 }
 
 class _CommandButton extends StatelessWidget {
-  const _CommandButton({required this.builder, required this.manager});
+  const _CommandButton({
+    required this.builder,
+    required this.manager,
+    this.onBeforeCommand,
+  });
 
   final WorkbookCommandBuilder builder;
   final WorkbookCommandManager manager;
+  final VoidCallback? onBeforeCommand;
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +155,12 @@ class _CommandButton extends StatelessWidget {
     return SizedBox(
       width: 180,
       child: FilledButton.tonal(
-        onPressed: canExecute ? () => manager.execute(builder()) : null,
+        onPressed: canExecute
+            ? () {
+                onBeforeCommand?.call();
+                manager.execute(builder());
+              }
+            : null,
         child: Text(
           prototype.label,
           textAlign: TextAlign.center,
@@ -142,9 +171,10 @@ class _CommandButton extends StatelessWidget {
 }
 
 class _HistoryGroup extends StatelessWidget {
-  const _HistoryGroup({required this.manager});
+  const _HistoryGroup({required this.manager, this.onBeforeCommand});
 
   final WorkbookCommandManager manager;
+  final VoidCallback? onBeforeCommand;
 
   @override
   Widget build(BuildContext context) {
@@ -166,12 +196,18 @@ class _HistoryGroup extends StatelessWidget {
               _HistoryButton(
                 label: 'Annuler',
                 isEnabled: manager.canUndo,
-                onPressed: manager.undo,
+                onPressed: () {
+                  onBeforeCommand?.call();
+                  manager.undo();
+                },
               ),
               _HistoryButton(
                 label: 'Rétablir',
                 isEnabled: manager.canRedo,
-                onPressed: manager.redo,
+                onPressed: () {
+                  onBeforeCommand?.call();
+                  manager.redo();
+                },
               ),
             ],
           ),

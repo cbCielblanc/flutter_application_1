@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'application/commands/workbook_command_manager.dart';
 import 'domain/cell.dart';
+import 'domain/menu_page.dart';
 import 'domain/sheet.dart';
 import 'domain/workbook.dart';
 import 'presentation/workbook_navigator.dart';
@@ -47,7 +48,8 @@ class _MyAppState extends State<MyApp> {
       growable: false,
     );
     final sheet = Sheet(name: 'Feuille 1', rows: rows);
-    return Workbook(pages: [sheet]);
+    final menu = MenuPage(name: 'Menu principal');
+    return Workbook(pages: [menu, sheet]);
   }
 
   @override
