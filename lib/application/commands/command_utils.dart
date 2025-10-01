@@ -39,9 +39,12 @@ List<List<Cell>> normaliseCellCoordinates(List<List<Cell>> rows) {
   return rows;
 }
 Workbook replaceSheet(Workbook workbook, int sheetIndex, Sheet newSheet) {
-  final sheets = workbook.sheets.toList(growable: true);
-  sheets[sheetIndex] = newSheet;
-  return Workbook(sheets: sheets);
+  final target = workbook.sheets[sheetIndex];
+  final pages = workbook.pages.toList(growable: true);
+  final pageIndex = pages.indexOf(target);
+  assert(pageIndex != -1, 'Sheet must exist in workbook pages.');
+  pages[pageIndex] = newSheet;
+  return Workbook(pages: pages);
 }
 
 Sheet rebuildSheetFromRows(Sheet template, List<List<Cell>> rows) {

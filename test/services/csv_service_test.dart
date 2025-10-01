@@ -49,7 +49,7 @@ void main() {
 
     test('saveToCsv persists typed cells using the delimiter', () async {
       final workbook = Workbook(
-        sheets: [
+        pages: [
           Sheet.fromRows(
             name: 'Notes',
             rows: [

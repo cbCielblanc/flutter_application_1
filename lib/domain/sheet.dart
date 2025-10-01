@@ -2,6 +2,7 @@ import 'package:csv/csv.dart';
 import 'package:meta/meta.dart';
 
 import 'cell.dart';
+import 'workbook_page.dart';
 
 /// A tabular collection of [Cell]s within a [Workbook].
 ///
@@ -11,7 +12,7 @@ import 'cell.dart';
 /// * All rows must have the same number of columns. Gaps are represented by
 ///   [CellType.empty] cells.
 @immutable
-class Sheet {
+class Sheet extends WorkbookPage {
   Sheet({
     required this.name,
     required List<List<Cell>> rows,
@@ -26,7 +27,11 @@ class Sheet {
             .toList(growable: false);
 
   /// Unique sheet name inside its workbook.
+  @override
   final String name;
+
+  @override
+  String get type => 'sheet';
 
   final List<List<Cell>> _rows;
 
@@ -39,6 +44,12 @@ class Sheet {
 
   /// Number of columns.
   int get columnCount => _rows.isEmpty ? 0 : _rows.first.length;
+
+  @override
+  Map<String, Object?> get metadata => {
+        'rowCount': rowCount,
+        'columnCount': columnCount,
+      };
 
   /// Serialises the sheet to CSV text.
   ///

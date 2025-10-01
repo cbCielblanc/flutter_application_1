@@ -47,7 +47,7 @@ class _MyAppState extends State<MyApp> {
       growable: false,
     );
     final sheet = Sheet(name: 'Feuille 1', rows: rows);
-    return Workbook(sheets: [sheet]);
+    return Workbook(pages: [sheet]);
   }
 
   @override
