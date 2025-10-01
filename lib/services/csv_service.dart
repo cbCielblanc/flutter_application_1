@@ -76,7 +76,6 @@ class CsvService {
     final raw = await file.readAsString();
     final converter = const CsvToListConverter(
       shouldParseNumbers: false,
-      shouldParseNulls: false,
     );
 
     List<List<dynamic>> rows;
