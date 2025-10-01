@@ -2,11 +2,11 @@ import '../../domain/workbook.dart';
 import 'workbook_command.dart';
 
 class RemoveSheetCommand extends WorkbookCommand {
-  const RemoveSheetCommand({this.sheetIndex});
+  RemoveSheetCommand({this.sheetIndex});
 
   final int? sheetIndex;
 
-  const RemoveSheetCommand.forIndex(int index) : sheetIndex = index;
+  RemoveSheetCommand.forIndex(int index) : sheetIndex = index;
 
   @override
   String get label => 'Supprimer la feuille';
@@ -20,7 +20,7 @@ class RemoveSheetCommand extends WorkbookCommand {
   }
 
   @override
-  WorkbookCommandResult execute(WorkbookCommandContext context) {
+  WorkbookCommandResult performExecute(WorkbookCommandContext context) {
     final index = sheetIndex ?? context.activeSheetIndex;
     if (!canExecute(context)) {
       return WorkbookCommandResult(workbook: context.workbook);

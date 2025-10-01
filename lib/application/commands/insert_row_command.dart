@@ -4,7 +4,7 @@ import 'command_utils.dart';
 import 'workbook_command.dart';
 
 class InsertRowCommand extends WorkbookCommand {
-  const InsertRowCommand({this.rowIndex});
+  InsertRowCommand({this.rowIndex});
 
   final int? rowIndex;
 
@@ -18,7 +18,7 @@ class InsertRowCommand extends WorkbookCommand {
   }
 
   @override
-  WorkbookCommandResult execute(WorkbookCommandContext context) {
+  WorkbookCommandResult performExecute(WorkbookCommandContext context) {
     final sheet = context.activeSheet;
     if (sheet == null) {
       return WorkbookCommandResult(workbook: context.workbook);

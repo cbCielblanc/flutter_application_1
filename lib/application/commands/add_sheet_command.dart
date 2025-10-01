@@ -4,7 +4,7 @@ import '../../domain/workbook.dart';
 import 'workbook_command.dart';
 
 class AddSheetCommand extends WorkbookCommand {
-  const AddSheetCommand({this.rowCount = 20, this.columnCount = 8});
+  AddSheetCommand({this.rowCount = 20, this.columnCount = 8});
 
   final int rowCount;
   final int columnCount;
@@ -13,7 +13,7 @@ class AddSheetCommand extends WorkbookCommand {
   String get label => 'Nouvelle feuille';
 
   @override
-  WorkbookCommandResult execute(WorkbookCommandContext context) {
+  WorkbookCommandResult performExecute(WorkbookCommandContext context) {
     final newSheetName = _generateSheetName(context.workbook);
     final rows = List<List<Cell>>.generate(
       rowCount,
