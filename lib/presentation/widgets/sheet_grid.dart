@@ -83,68 +83,63 @@ class _SheetGridState extends State<SheetGrid> {
             child: SingleChildScrollView(
               controller: _verticalController,
               scrollDirection: Axis.vertical,
-              child: AnimatedBuilder(
-                animation: selectionState,
-                builder: (context, _) {
-                  return Table(
-                    border: TableBorder.symmetric(
-                      inside: BorderSide(color: theme.dividerColor.withOpacity(0.4)),
-                      outside: BorderSide(color: theme.dividerColor.withOpacity(0.6)),
-                    ),
-                    columnWidths: <int, TableColumnWidth>{
-                      0: const FixedColumnWidth(_headerColumnWidth),
-                      for (var i = 1; i < columnCount; i++)
-                        i: FixedColumnWidth(widget.cellWidth),
-                    },
-                    defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                    children: List<TableRow>.generate(rowCount, (rowIndex) {
-                      return TableRow(
-                        decoration: BoxDecoration(
-                          color: rowIndex == 0
-                              ? theme.colorScheme.surfaceVariant.withOpacity(0.6)
-                              : null,
-                        ),
-                        children: List<Widget>.generate(columnCount, (columnIndex) {
-                          if (rowIndex == 0 && columnIndex == 0) {
-                            return _HeaderCell(
-                              content: '',
-                              backgroundColor:
-                                  theme.colorScheme.surfaceVariant.withOpacity(0.6),
-                            );
-                          }
-                          if (rowIndex == 0) {
-                            final label = CellPosition.columnLabel(columnIndex - 1);
-                            return _HeaderCell(
-                              content: label,
-                              backgroundColor:
-                                  theme.colorScheme.surfaceVariant.withOpacity(0.6),
-                            );
-                          }
-                          if (columnIndex == 0) {
-                            return _HeaderCell(
-                              content: rowIndex.toString(),
-                              height: widget.cellHeight,
-                              backgroundColor:
-                                  theme.colorScheme.surfaceVariant.withOpacity(0.4),
-                            );
-                          }
-                          final position = CellPosition(rowIndex - 1, columnIndex - 1);
-                          final value = selectionState.valueFor(position);
-                          final isActive = selectionState.activeCell == position;
-                          return _DataCell(
-                            value: value,
-                            isActive: isActive,
-                            height: widget.cellHeight,
-                            onTap: () {
-                              selectionState.commitEditingValue();
-                              selectionState.selectCell(position);
-                            },
+              child: RepaintBoundary(
+                child: Table(
+                  border: TableBorder.symmetric(
+                    inside: BorderSide(color: theme.dividerColor.withOpacity(0.4)),
+                    outside: BorderSide(color: theme.dividerColor.withOpacity(0.6)),
+                  ),
+                  columnWidths: <int, TableColumnWidth>{
+                    0: const FixedColumnWidth(_headerColumnWidth),
+                    for (var i = 1; i < columnCount; i++)
+                      i: FixedColumnWidth(widget.cellWidth),
+                  },
+                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                  children: List<TableRow>.generate(rowCount, (rowIndex) {
+                    return TableRow(
+                      decoration: BoxDecoration(
+                        color: rowIndex == 0
+                            ? theme.colorScheme.surfaceVariant.withOpacity(0.6)
+                            : null,
+                      ),
+                      children: List<Widget>.generate(columnCount, (columnIndex) {
+                        if (rowIndex == 0 && columnIndex == 0) {
+                          return _HeaderCell(
+                            content: '',
+                            backgroundColor:
+                                theme.colorScheme.surfaceVariant.withOpacity(0.6),
                           );
-                        }),
-                      );
-                    }),
-                  );
-                },
+                        }
+                        if (rowIndex == 0) {
+                          final label = CellPosition.columnLabel(columnIndex - 1);
+                          return _HeaderCell(
+                            content: label,
+                            backgroundColor:
+                                theme.colorScheme.surfaceVariant.withOpacity(0.6),
+                          );
+                        }
+                        if (columnIndex == 0) {
+                          return _HeaderCell(
+                            content: rowIndex.toString(),
+                            height: widget.cellHeight,
+                            backgroundColor:
+                                theme.colorScheme.surfaceVariant.withOpacity(0.4),
+                          );
+                        }
+                        final position = CellPosition(rowIndex - 1, columnIndex - 1);
+                        return _DataCell(
+                          selectionState: selectionState,
+                          position: position,
+                          height: widget.cellHeight,
+                          onTap: () {
+                            selectionState.commitEditingValue();
+                            selectionState.selectCell(position);
+                          },
+                        );
+                      }),
+                    );
+                  }),
+                ),
               ),
             ),
           ),
@@ -182,43 +177,95 @@ class _HeaderCell extends StatelessWidget {
   }
 }
 
-class _DataCell extends StatelessWidget {
+class _DataCell extends StatefulWidget {
   const _DataCell({
-    required this.value,
-    required this.isActive,
+    required this.selectionState,
+    required this.position,
     required this.height,
     required this.onTap,
   });
 
-  final String value;
-  final bool isActive;
+  final SheetSelectionState selectionState;
+  final CellPosition position;
   final double height;
   final VoidCallback onTap;
 
   @override
+  State<_DataCell> createState() => _DataCellState();
+}
+
+class _DataCellState extends State<_DataCell> {
+  late String _value;
+  late bool _isActive;
+
+  SheetSelectionState get _selectionState => widget.selectionState;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncFromState();
+    _selectionState.addListener(_handleSelectionChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant _DataCell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectionState != widget.selectionState) {
+      oldWidget.selectionState.removeListener(_handleSelectionChanged);
+      _syncFromState();
+      _selectionState.addListener(_handleSelectionChanged);
+    } else if (oldWidget.position != widget.position) {
+      _syncFromState();
+    }
+  }
+
+  @override
+  void dispose() {
+    _selectionState.removeListener(_handleSelectionChanged);
+    super.dispose();
+  }
+
+  void _syncFromState() {
+    _value = _selectionState.valueFor(widget.position);
+    _isActive = _selectionState.activeCell == widget.position;
+  }
+
+  void _handleSelectionChanged() {
+    final nextValue = _selectionState.valueFor(widget.position);
+    final nextIsActive = _selectionState.activeCell == widget.position;
+    if (nextValue == _value && nextIsActive == _isActive) {
+      return;
+    }
+    setState(() {
+      _value = nextValue;
+      _isActive = nextIsActive;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final backgroundColor = isActive
+    final backgroundColor = _isActive
         ? theme.colorScheme.primary.withOpacity(0.1)
         : theme.colorScheme.surface;
-    final borderColor = isActive
+    final borderColor = _isActive
         ? theme.colorScheme.primary
         : theme.dividerColor.withOpacity(0.4);
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: onTap,
+        onTap: widget.onTap,
         child: Container(
           alignment: Alignment.centerLeft,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          height: height,
+          height: widget.height,
           decoration: BoxDecoration(
             color: backgroundColor,
-            border: Border.all(color: borderColor, width: isActive ? 2 : 1),
+            border: Border.all(color: borderColor, width: _isActive ? 2 : 1),
           ),
           child: Text(
-            value,
+            _value,
             style: theme.textTheme.bodyMedium,
             overflow: TextOverflow.ellipsis,
           ),
