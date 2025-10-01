@@ -2,6 +2,7 @@ import 'package:meta/meta.dart';
 
 import 'sheet.dart';
 import 'workbook_page.dart';
+import 'menu_page.dart';
 
 /// Represents a spreadsheet workbook.
 ///
@@ -16,6 +17,10 @@ class Workbook {
         assert(
           _arePageNamesUnique(pages),
           'Page names must be unique.',
+        ),
+        assert(
+          _hasAtMostOneMenuPage(pages),
+          'A workbook cannot contain more than one menu page.',
         ),
         _pages = List<WorkbookPage>.unmodifiable(pages);
 
@@ -61,6 +66,19 @@ class Workbook {
     for (final page in pages) {
       if (!seen.add(page.name)) {
         return false;
+      }
+    }
+    return true;
+  }
+
+  static bool _hasAtMostOneMenuPage(List<WorkbookPage> pages) {
+    var menuCount = 0;
+    for (final page in pages) {
+      if (page is MenuPage) {
+        menuCount++;
+        if (menuCount > 1) {
+          return false;
+        }
       }
     }
     return true;
