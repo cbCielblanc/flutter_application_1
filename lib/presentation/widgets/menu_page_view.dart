@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/menu_page.dart';
 import '../../domain/workbook.dart';
-import '../../domain/workbook_page.dart';
+import '../workbook_page_display.dart';
 
 class MenuPageView extends StatelessWidget {
   const MenuPageView({
@@ -24,7 +24,8 @@ class MenuPageView extends StatelessWidget {
         if (workbook.pages[index] is! MenuPage)
           _MenuDestination(
             title: workbook.pages[index].name,
-            subtitle: _describePage(workbook.pages[index]),
+            subtitle: workbookPageDescription(workbook.pages[index]),
+            icon: workbookPageIcon(workbook.pages[index]),
             pageIndex: index,
           ),
     ];
@@ -73,23 +74,19 @@ class MenuPageView extends StatelessWidget {
     );
   }
 
-  String _describePage(WorkbookPage page) {
-    if (page is MenuPage) {
-      return 'Page de menu';
-    }
-    return 'Feuille de calcul';
-  }
 }
 
 class _MenuDestination {
   const _MenuDestination({
     required this.title,
     required this.subtitle,
+    required this.icon,
     required this.pageIndex,
   });
 
   final String title;
   final String subtitle;
+  final IconData icon;
   final int pageIndex;
 }
 
@@ -124,7 +121,10 @@ class _MenuDestinationCard extends StatelessWidget {
                     color: theme.colorScheme.primary.withOpacity(0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.grid_on, color: theme.colorScheme.primary),
+                  child: Icon(
+                    destination.icon,
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(

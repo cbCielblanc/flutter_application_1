@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../application/commands/add_sheet_command.dart';
 import '../application/commands/command_utils.dart';
@@ -6,14 +7,17 @@ import '../application/commands/remove_sheet_command.dart';
 import '../application/commands/workbook_command_manager.dart';
 import '../domain/cell.dart';
 import '../domain/menu_page.dart';
+import '../domain/notes_page.dart';
 import '../domain/sheet.dart';
 import '../domain/workbook.dart';
 import '../state/sheet_selection_state.dart';
 import 'widgets/command_ribbon.dart';
 import 'widgets/formula_bar.dart';
 import 'widgets/menu_page_view.dart';
+import 'widgets/notes_page_view.dart';
 import 'widgets/sheet_grid.dart';
 import 'widgets/workbook_page_tab_bar.dart';
+import 'workbook_page_display.dart';
 
 class WorkbookNavigator extends StatefulWidget {
   const WorkbookNavigator({
@@ -31,6 +35,10 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   late PageController _pageController;
   final Map<String, SheetSelectionState> _selectionStates =
       <String, SheetSelectionState>{};
+  final Map<String, TextEditingController> _notesControllers =
+      <String, TextEditingController>{};
+  final Map<String, VoidCallback> _notesListeners =
+      <String, VoidCallback>{};
   late int _currentPageIndex;
 
   WorkbookCommandManager get _manager => widget.commandManager;
@@ -64,12 +72,25 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   void _handleManagerChanged() {
     final workbook = _manager.workbook;
     final sheets = workbook.sheets;
+    final notesPages = workbook.pages.whereType<NotesPage>().toList();
 
     final removedSheets = _selectionStates.keys
         .where((name) => sheets.every((sheet) => sheet.name != name))
         .toList(growable: false);
     for (final sheet in removedSheets) {
       _selectionStates.remove(sheet)?.dispose();
+    }
+
+    final removedNotes = _notesControllers.keys
+        .where((name) => notesPages.every((page) => page.name != name))
+        .toList(growable: false);
+    for (final noteName in removedNotes) {
+      final controller = _notesControllers.remove(noteName);
+      final listener = _notesListeners.remove(noteName);
+      if (controller != null && listener != null) {
+        controller.removeListener(listener);
+      }
+      controller?.dispose();
     }
 
     final newIndex = _manager.activePageIndex;
@@ -114,6 +135,13 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     for (final state in _selectionStates.values) {
       state.dispose();
     }
+    _notesControllers.forEach((name, controller) {
+      final listener = _notesListeners[name];
+      if (listener != null) {
+        controller.removeListener(listener);
+      }
+      controller.dispose();
+    });
     super.dispose();
   }
 
@@ -143,6 +171,55 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     if (page is Sheet) {
       _commitEditsForSheet(page.name);
     }
+  }
+
+  TextEditingController _controllerForNotesPage(NotesPage page) {
+    final existing = _notesControllers[page.name];
+    if (existing != null) {
+      if (existing.text != page.content) {
+        final listener = _notesListeners[page.name];
+        if (listener != null) {
+          existing.removeListener(listener);
+        }
+        final previousSelection = existing.selection;
+        existing.value = existing.value.copyWith(
+          text: page.content,
+          selection: previousSelection,
+          composing: TextRange.empty,
+        );
+        if (listener != null) {
+          existing.addListener(listener);
+        }
+      }
+      return existing;
+    }
+    final controller = TextEditingController(text: page.content);
+    void handleChange() => _handleNotesChanged(page.name, controller.text);
+    controller.addListener(handleChange);
+    _notesControllers[page.name] = controller;
+    _notesListeners[page.name] = handleChange;
+    return controller;
+  }
+
+  void _handleNotesChanged(String pageName, String content) {
+    final workbook = _manager.workbook;
+    final pageIndex = workbook.pages.indexWhere((page) => page.name == pageName);
+    if (pageIndex == -1) {
+      return;
+    }
+    final page = workbook.pages[pageIndex];
+    if (page is! NotesPage) {
+      return;
+    }
+    if (page.content == content) {
+      return;
+    }
+    final updatedPage = page.copyWith(content: content);
+    final updatedWorkbook = replacePage(workbook, pageIndex, updatedPage);
+    _manager.applyExternalUpdate(
+      updatedWorkbook,
+      activePageIndex: _manager.activePageIndex,
+    );
   }
 
   void _handleSelectPage(int pageIndex) {
@@ -260,7 +337,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
             WorkbookPageTabData(
               title: page.name,
               pageIndex: pageIndex,
-              icon: page is MenuPage ? Icons.menu : Icons.grid_on,
+              icon: workbookPageIcon(page),
               sheetIndex: sheetIndex,
               canClose: page is Sheet && workbook.sheets.length > 1,
             ),
@@ -336,6 +413,14 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                             page: page,
                             workbook: workbook,
                             onOpenPage: _handleSelectPage,
+                          );
+                        }
+                        if (page is NotesPage) {
+                          final controller =
+                              _controllerForNotesPage(page);
+                          return NotesPageView(
+                            page: page,
+                            controller: controller,
                           );
                         }
                         return Center(

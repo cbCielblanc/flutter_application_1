@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../application/commands/add_menu_page_command.dart';
+import '../../application/commands/add_notes_page_command.dart';
 import '../../application/commands/add_sheet_command.dart';
 import '../../application/commands/clear_sheet_command.dart';
 import '../../application/commands/insert_column_command.dart';
@@ -26,6 +27,7 @@ class CommandRibbon extends StatelessWidget {
   static final List<WorkbookCommandBuilder> _editionCommands =
       <WorkbookCommandBuilder>[
     () => AddMenuPageCommand(),
+    () => AddNotesPageCommand(),
     () => AddSheetCommand(),
     () => InsertRowCommand(),
     () => InsertColumnCommand(),

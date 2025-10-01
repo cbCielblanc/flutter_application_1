@@ -12,13 +12,18 @@ class AddMenuPageCommand extends WorkbookCommand {
   final Map<String, Object?> metadata;
 
   @override
-  String get label => 'Nouvelle page menu';
+  String get label => 'Créer le menu principal';
+
+  @override
+  bool canExecute(WorkbookCommandContext context) {
+    final menuCount = context.workbook.pages.whereType<MenuPage>().length;
+    return menuCount < 1;
+  }
 
   @override
   WorkbookCommandResult performExecute(WorkbookCommandContext context) {
-    final newPageName = _generatePageName(context.workbook);
     final newPage = MenuPage(
-      name: newPageName,
+      name: _generatePageName(context.workbook),
       layout: layout,
       metadata: metadata,
     );
@@ -33,17 +38,5 @@ class AddMenuPageCommand extends WorkbookCommand {
     );
   }
 
-  String _generatePageName(Workbook workbook) {
-    const prefix = 'Menu ';
-    var highest = 0;
-    for (final page in workbook.pages.whereType<MenuPage>()) {
-      if (page.name.startsWith(prefix)) {
-        final maybeNumber = int.tryParse(page.name.substring(prefix.length));
-        if (maybeNumber != null && maybeNumber > highest) {
-          highest = maybeNumber;
-        }
-      }
-    }
-    return '$prefix${highest + 1}';
-  }
+  String _generatePageName(Workbook workbook) => 'Menu principal';
 }
