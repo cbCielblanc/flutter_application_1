@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../state/sheet_selection_state.dart';
+import 'widgets/formula_bar.dart';
+import 'widgets/sheet_grid.dart';
 import 'widgets/sheet_tab_bar.dart';
 
 class WorkbookNavigator extends StatefulWidget {
@@ -24,11 +27,15 @@ class WorkbookNavigator extends StatefulWidget {
 
 class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   late final PageController _pageController;
+  final Map<String, SheetSelectionState> _selectionStates =
+      <String, SheetSelectionState>{};
+  late int _currentPageIndex;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: widget.selectedSheetIndex);
+    _currentPageIndex = widget.selectedSheetIndex;
   }
 
   @override
@@ -36,6 +43,13 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     super.didUpdateWidget(oldWidget);
     if (widget.selectedSheetIndex != oldWidget.selectedSheetIndex) {
       _jumpToSheet(widget.selectedSheetIndex);
+      _currentPageIndex = widget.selectedSheetIndex;
+    }
+    final removedSheets = oldWidget.sheets
+        .where((sheet) => !widget.sheets.contains(sheet))
+        .toList();
+    for (final sheet in removedSheets) {
+      _selectionStates.remove(sheet)?.dispose();
     }
   }
 
@@ -61,7 +75,48 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   @override
   void dispose() {
     _pageController.dispose();
+    for (final state in _selectionStates.values) {
+      state.dispose();
+    }
     super.dispose();
+  }
+
+  SheetSelectionState _stateForSheet(String sheetName) {
+    return _selectionStates.putIfAbsent(sheetName, SheetSelectionState.new);
+  }
+
+  void _commitEditsForSheet(String sheetName) {
+    final state = _selectionStates[sheetName];
+    state?.commitEditingValue();
+  }
+
+  void _handleSelectSheet(int index) {
+    final sheets = widget.sheets;
+    if (index < 0 || index >= sheets.length) {
+      return;
+    }
+    if (_currentPageIndex >= 0 && _currentPageIndex < sheets.length) {
+      _commitEditsForSheet(sheets[_currentPageIndex]);
+    }
+    widget.onSheetSelected(index);
+  }
+
+  void _handleAddSheet() {
+    final sheets = widget.sheets;
+    if (_currentPageIndex >= 0 && _currentPageIndex < sheets.length) {
+      _commitEditsForSheet(sheets[_currentPageIndex]);
+    }
+    widget.onAddSheet();
+  }
+
+  void _handleRemoveSheet(int index) {
+    final sheets = widget.sheets;
+    if (index < 0 || index >= sheets.length) {
+      return;
+    }
+    final sheetName = sheets[index];
+    _selectionStates.remove(sheetName)?.dispose();
+    widget.onRemoveSheet(index);
   }
 
   @override
@@ -72,9 +127,9 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
         SheetTabBar(
           sheets: sheets,
           selectedIndex: widget.selectedSheetIndex,
-          onSelectSheet: widget.onSheetSelected,
-          onAddSheet: widget.onAddSheet,
-          onRemoveSheet: widget.onRemoveSheet,
+          onSelectSheet: _handleSelectSheet,
+          onAddSheet: _handleAddSheet,
+          onRemoveSheet: _handleRemoveSheet,
         ),
         Expanded(
           child: sheets.isEmpty
@@ -82,12 +137,44 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
               : PageView.builder(
                   controller: _pageController,
                   itemCount: sheets.length,
-                  onPageChanged: widget.onSheetSelected,
+                  onPageChanged: (index) {
+                    if (_currentPageIndex >= 0 &&
+                        _currentPageIndex < sheets.length) {
+                      _commitEditsForSheet(sheets[_currentPageIndex]);
+                    }
+                    _currentPageIndex = index;
+                    widget.onSheetSelected(index);
+                  },
                   itemBuilder: (context, index) {
-                    return Center(
-                      child: Text(
-                        'Contenu de ${sheets[index]}',
-                        style: Theme.of(context).textTheme.headlineSmall,
+                    final sheetName = sheets[index];
+                    final selectionState = _stateForSheet(sheetName);
+                    return Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          FormulaBar(selectionState: selectionState),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                color: Theme.of(context).colorScheme.surface,
+                                border: Border.all(
+                                  color: Theme.of(context)
+                                      .dividerColor
+                                      .withOpacity(0.4),
+                                ),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: SheetGrid(
+                                  selectionState: selectionState,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   },
