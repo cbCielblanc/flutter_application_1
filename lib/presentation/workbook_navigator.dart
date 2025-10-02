@@ -74,6 +74,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   bool _scriptEditorDirty = false;
   String? _scriptEditorStatus;
   ScriptDescriptor? _currentScriptDescriptor;
+  bool _suppressScriptEditorChanges = false;
   late int _currentPageIndex;
 
   WorkbookCommandManager get _manager => widget.commandManager;
@@ -83,12 +84,33 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   @override
   void initState() {
     super.initState();
+    _customActionLabelController = TextEditingController();
+    _customActionTemplateController = TextEditingController();
+    _scriptEditorController.addListener(_handleScriptEditorChanged);
+    _sharedScriptKeyController.addListener(_handleSharedScriptKeyChanged);
+    if (_isAdmin) {
+      _initialiseCustomActions();
+    }
     final initialPageIndex = _manager.activePageIndex;
+    final pages = _manager.workbook.pages;
+    if (pages.isNotEmpty) {
+      final safeIndex = initialPageIndex >= 0 && initialPageIndex < pages.length
+          ? initialPageIndex
+          : 0;
+      _scriptEditorPageName = pages[safeIndex].name;
+    }
     _currentPageIndex = initialPageIndex;
     _pageController = PageController(
       initialPage: initialPageIndex < 0 ? 0 : initialPageIndex,
     );
     _manager.addListener(_handleManagerChanged);
+    if (_isAdmin) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_loadScriptEditor());
+        }
+      });
+    }
   }
 
   @override
@@ -136,6 +158,21 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       _currentPageIndex = newIndex;
       _jumpToPage(newIndex);
     }
+    if (_scriptEditorScope == ScriptScope.page) {
+      final pageNames = workbook.pages.map((page) => page.name).toList();
+      final currentSelection = _scriptEditorPageName;
+      if (currentSelection == null || !pageNames.contains(currentSelection)) {
+        final fallback = pageNames.isNotEmpty ? pageNames.first : null;
+        if (fallback != currentSelection) {
+          setState(() {
+            _scriptEditorPageName = fallback;
+          });
+          if (_isAdmin && fallback != null) {
+            unawaited(_loadScriptEditor());
+          }
+        }
+      }
+    }
   }
 
   void _jumpToPage(int index) {
@@ -168,6 +205,8 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   @override
   void dispose() {
     _manager.removeListener(_handleManagerChanged);
+    _scriptEditorController.removeListener(_handleScriptEditorChanged);
+    _sharedScriptKeyController.removeListener(_handleSharedScriptKeyChanged);
     _pageController.dispose();
     for (final state in _selectionStates.values) {
       state.dispose();
@@ -179,6 +218,10 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       }
       controller.dispose();
     });
+    _customActionLabelController.dispose();
+    _customActionTemplateController.dispose();
+    _scriptEditorController.dispose();
+    _sharedScriptKeyController.dispose();
     super.dispose();
   }
 
@@ -421,6 +464,444 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     );
   }
 
+  void _handleScriptEditorChanged() {
+    if (_suppressScriptEditorChanges) {
+      return;
+    }
+    if (!_scriptEditorDirty) {
+      setState(() {
+        _scriptEditorDirty = true;
+      });
+    }
+  }
+
+  void _handleSharedScriptKeyChanged() {
+    final value = normaliseScriptKey(_sharedScriptKeyController.text);
+    if (value != _scriptSharedKey) {
+      setState(() {
+        _scriptSharedKey = value;
+      });
+    }
+  }
+
+  void _initialiseCustomActions() {
+    if (_customActions.isNotEmpty) {
+      return;
+    }
+    _customActions.addAll(const <CustomAction>[
+      CustomAction(
+        id: 'log',
+        label: 'Ajouter un log',
+        template: '  - log:\n      message: "Votre message"\n',
+      ),
+      CustomAction(
+        id: 'set_cell',
+        label: 'Ecrire une cellule',
+        template: '  - set_cell:\n      cell: A1\n      value: "=B1"\n',
+      ),
+      CustomAction(
+        id: 'run_snippet',
+        label: 'Executer un snippet',
+        template:
+            '  - run_snippet:\n      module: shared/default\n      name: votre_snippet\n      args:\n        target: A1\n',
+      ),
+    ]);
+  }
+
+  void _handleScriptScopeChanged(ScriptScope scope) {
+    if (_scriptEditorScope == scope) {
+      return;
+    }
+    setState(() {
+      _scriptEditorScope = scope;
+      if (scope == ScriptScope.page) {
+        final pages = _manager.workbook.pages;
+        if (pages.isEmpty) {
+          _scriptEditorPageName = null;
+        } else if (!pages.any((page) => page.name == _scriptEditorPageName)) {
+          _scriptEditorPageName = pages.first.name;
+        }
+      }
+    });
+    unawaited(_loadScriptEditor());
+  }
+
+  Future<void> _handleSaveScript() async {
+    final descriptor = _resolveScriptDescriptor();
+    if (descriptor == null) {
+      setState(() {
+        _scriptEditorStatus =
+            "Impossible d'enregistrer: aucun script selectionne.";
+      });
+      return;
+    }
+    setState(() {
+      _scriptEditorLoading = true;
+      _scriptEditorStatus = 'Enregistrement du script...';
+    });
+    try {
+      final stored =
+          await _runtime.storage.saveScript(descriptor, _scriptEditorController.text);
+      await _runtime.reload();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _currentScriptDescriptor = stored.descriptor;
+        _scriptEditorDirty = false;
+        _scriptEditorStatus = 'Script enregistre dans ${stored.origin}.';
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _scriptEditorStatus =
+            "Erreur lors de l'enregistrement du script: $error";
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _scriptEditorLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleReloadScripts() async {
+    try {
+      setState(() {
+        _scriptEditorStatus = 'Rechargement des scripts...';
+      });
+      await _runtime.reload();
+      await _loadScriptEditor();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _scriptEditorStatus = 'Erreur lors du rechargement: $error';
+      });
+    }
+  }
+
+  ScriptDescriptor? _resolveScriptDescriptor() {
+    switch (_scriptEditorScope) {
+      case ScriptScope.global:
+        return const ScriptDescriptor(scope: ScriptScope.global, key: 'default');
+      case ScriptScope.page:
+        final pageName = _scriptEditorPageName ??
+            (_manager.workbook.pages.isNotEmpty
+                ? _manager.workbook.pages.first.name
+                : null);
+        if (pageName == null) {
+          return null;
+        }
+        return ScriptDescriptor(
+          scope: ScriptScope.page,
+          key: normaliseScriptKey(pageName),
+        );
+      case ScriptScope.shared:
+        final raw = _sharedScriptKeyController.text.trim();
+        if (raw.isEmpty && _scriptSharedKey.isEmpty) {
+          return null;
+        }
+        final key = raw.isNotEmpty ? normaliseScriptKey(raw) : _scriptSharedKey;
+        return ScriptDescriptor(scope: ScriptScope.shared, key: key);
+    }
+  }
+
+  Future<void> _loadScriptEditor() async {
+    final descriptor = _resolveScriptDescriptor();
+    if (descriptor == null) {
+      setState(() {
+        _currentScriptDescriptor = null;
+        _scriptEditorLoading = false;
+        _suppressScriptEditorChanges = true;
+        _scriptEditorController.clear();
+        _suppressScriptEditorChanges = false;
+        _scriptEditorDirty = false;
+        _scriptEditorStatus =
+            'Selectionnez un script a charger pour commencer.';
+      });
+      return;
+    }
+    setState(() {
+      _scriptEditorLoading = true;
+      _scriptEditorStatus = 'Chargement de ${descriptor.fileName}...';
+    });
+    try {
+      final stored = await _runtime.storage.loadScript(descriptor);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _currentScriptDescriptor = descriptor;
+        _suppressScriptEditorChanges = true;
+        _scriptEditorController.text = stored?.source ??
+            _defaultScriptTemplate(descriptor);
+        _suppressScriptEditorChanges = false;
+        _scriptEditorDirty = false;
+        _scriptEditorStatus = stored == null
+            ? 'Aucun script trouve. Un modele par defaut a ete genere.'
+            : 'Script charge depuis ${stored.origin}.';
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _scriptEditorStatus = 'Erreur lors du chargement: $error';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _scriptEditorLoading = false;
+        });
+      }
+    }
+  }
+
+  String _defaultScriptTemplate(ScriptDescriptor descriptor) {
+    switch (descriptor.scope) {
+      case ScriptScope.global:
+        return 'name: Global Script\n'
+            'scope: global\n'
+            'handlers:\n'
+            '  - event: workbook.open\n'
+            '    actions:\n'
+            '      - log:\n'
+            '          message: "Classeur ouvert"\n';
+      case ScriptScope.page:
+        return 'name: Page Script\n'
+            'scope: page\n'
+            'handlers:\n'
+            '  - event: page.enter\n'
+            '    actions:\n'
+            '      - log:\n'
+            '          message: "Bienvenue sur {{page.name}}"\n';
+      case ScriptScope.shared:
+        return 'name: Module partage\n'
+            'scope: shared\n'
+            'snippets:\n'
+            '  exemple:\n'
+            '    description: Exemple de snippet\n'
+            '    actions:\n'
+            '      - log:\n'
+            '          message: "Execution du snippet"\n';
+    }
+  }
+
+  String _scopeLabel(ScriptScope scope) {
+    switch (scope) {
+      case ScriptScope.global:
+        return 'Global';
+      case ScriptScope.page:
+        return 'Page';
+      case ScriptScope.shared:
+        return 'Module partage';
+    }
+  }
+
+  Widget _buildAdminPanel(BuildContext context) {
+    final theme = Theme.of(context);
+    final scope = _scriptEditorScope;
+    final workbook = _manager.workbook;
+    final pages = workbook.pages;
+    final availableNames = pages.map((page) => page.name).toList(growable: false);
+    final selectedPageName = availableNames.contains(_scriptEditorPageName)
+        ? _scriptEditorPageName
+        : (availableNames.isNotEmpty ? availableNames.first : null);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Card(
+        elevation: 2,
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Administration des scripts',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Recharger tous les scripts',
+                    onPressed: _scriptEditorLoading ? null : _handleReloadScripts,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  DropdownButton<ScriptScope>(
+                    value: scope,
+                    onChanged: (value) {
+                      if (value != null) {
+                        _handleScriptScopeChanged(value);
+                      }
+                    },
+                    items: ScriptScope.values
+                        .map(
+                          (value) => DropdownMenuItem<ScriptScope>(
+                            value: value,
+                            child: Text(_scopeLabel(value)),
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                  if (scope == ScriptScope.page)
+                    DropdownButton<String>(
+                      value: selectedPageName,
+                      hint: const Text('Page'),
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        if (value != _scriptEditorPageName) {
+                          setState(() {
+                            _scriptEditorPageName = value;
+                          });
+                          unawaited(_loadScriptEditor());
+                        }
+                      },
+                      items: pages
+                          .map(
+                            (page) => DropdownMenuItem<String>(
+                              value: page.name,
+                              child: Text(page.name),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+                  if (scope == ScriptScope.shared)
+                    SizedBox(
+                      width: 240,
+                      child: TextField(
+                        controller: _sharedScriptKeyController,
+                        decoration: InputDecoration(
+                          labelText: 'Module partage',
+                          helperText: 'Cle normalisee: $_scriptSharedKey',
+                        ),
+                      ),
+                    ),
+                  TextButton.icon(
+                    onPressed: _scriptEditorLoading ? null : _loadScriptEditor,
+                    icon: const Icon(Icons.download),
+                    label: const Text('Charger'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: (_scriptEditorLoading || !_scriptEditorDirty)
+                        ? null
+                        : _handleSaveScript,
+                    icon: const Icon(Icons.save),
+                    label: Text(
+                      _scriptEditorDirty ? 'Enregistrer*' : 'Enregistrer',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 240,
+                child: TextField(
+                  controller: _scriptEditorController,
+                  expands: true,
+                  maxLines: null,
+                  minLines: null,
+                  textAlignVertical: TextAlignVertical.top,
+                  decoration: InputDecoration(
+                    labelText: 'Contenu du script',
+                    alignLabelWithHint: true,
+                    border: const OutlineInputBorder(),
+                    suffixIcon: _scriptEditorLoading
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : null,
+                  ),
+                  style: const TextStyle(fontFamily: 'monospace'),
+                ),
+              ),
+              if (_scriptEditorStatus != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _scriptEditorStatus!,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomActionsBar(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: _customActions
+              .map(
+                (action) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Tooltip(
+                    message: action.template,
+                    child: ActionChip(
+                      label: Text(action.label),
+                      onPressed: () => _handleInsertCustomAction(action),
+                    ),
+                  ),
+                ),
+              )
+              .toList(growable: false),
+        ),
+      ),
+    );
+  }
+
+  void _handleInsertCustomAction(CustomAction action) {
+    final controller = _scriptEditorController;
+    final selection = controller.selection;
+    final insertion = action.template;
+    final text = controller.text;
+    final start = selection.isValid ? selection.start : text.length;
+    final end = selection.isValid ? selection.end : text.length;
+    final newText = text.replaceRange(start, end, insertion);
+    final newSelection = TextSelection.collapsed(
+      offset: start + insertion.length,
+    );
+    _suppressScriptEditorChanges = true;
+    controller.value = controller.value.copyWith(
+      text: newText,
+      selection: newSelection,
+      composing: TextRange.empty,
+    );
+    _suppressScriptEditorChanges = false;
+    if (!_scriptEditorDirty) {
+      setState(() {
+        _scriptEditorDirty = true;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -498,12 +979,10 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
 
                           unawaited(_runtime.dispatchPageEnter(nextPage));
 
-                          if (_scriptEditorScope == ScriptScope.page) {
-
+                          if (_isAdmin &&
+                              _scriptEditorScope == ScriptScope.page) {
                             _scriptEditorPageName = nextPage.name;
-
                             unawaited(_loadScriptEditor());
-
                           }
 
                         }
