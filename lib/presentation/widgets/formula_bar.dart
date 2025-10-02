@@ -3,9 +3,14 @@ import 'package:flutter/material.dart';
 import '../../state/sheet_selection_state.dart';
 
 class FormulaBar extends StatefulWidget {
-  const FormulaBar({super.key, required this.selectionState});
+  const FormulaBar({
+    super.key,
+    required this.selectionState,
+    this.onCommitAndAdvance,
+  });
 
   final SheetSelectionState selectionState;
+  final VoidCallback? onCommitAndAdvance;
 
   @override
   State<FormulaBar> createState() => _FormulaBarState();
@@ -16,27 +21,29 @@ class _FormulaBarState extends State<FormulaBar> {
   String? _lastCellLabel;
   bool _lastIsEnabled = false;
 
+  SheetSelectionState get _selectionState => widget.selectionState;
+
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController();
-    widget.selectionState.addListener(_handleSelectionChanged);
+    _selectionState.addListener(_handleSelectionChanged);
     _syncController();
   }
 
   @override
   void didUpdateWidget(covariant FormulaBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.selectionState != oldWidget.selectionState) {
+    if (oldWidget.selectionState != widget.selectionState) {
       oldWidget.selectionState.removeListener(_handleSelectionChanged);
-      widget.selectionState.addListener(_handleSelectionChanged);
+      _selectionState.addListener(_handleSelectionChanged);
       _syncController();
     }
   }
 
   @override
   void dispose() {
-    widget.selectionState.removeListener(_handleSelectionChanged);
+    _selectionState.removeListener(_handleSelectionChanged);
     _controller.dispose();
     super.dispose();
   }
@@ -49,15 +56,14 @@ class _FormulaBarState extends State<FormulaBar> {
   }
 
   void _syncController() {
-    final currentValue = widget.selectionState.editingValue;
+    final currentValue = _selectionState.editingValue;
     if (_controller.text != currentValue) {
       _controller
         ..text = currentValue
         ..selection = TextSelection.collapsed(offset: currentValue.length);
     }
-    final selectionState = widget.selectionState;
-    final newLabel = selectionState.activeCellLabel;
-    final newIsEnabled = selectionState.activeCell != null;
+    final newLabel = _selectionState.activeCellLabel;
+    final newIsEnabled = _selectionState.activeCell != null;
     final shouldRebuild =
         newLabel != _lastCellLabel || newIsEnabled != _lastIsEnabled;
     _lastCellLabel = newLabel;
@@ -67,16 +73,23 @@ class _FormulaBarState extends State<FormulaBar> {
     }
   }
 
+  void _commitAndAdvance() {
+    widget.onCommitAndAdvance?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final selectionState = widget.selectionState;
-    final cellLabel = selectionState.activeCellLabel ?? '--';
-    final isEnabled = selectionState.activeCell != null;
+    final cellLabel = _selectionState.activeCellLabel ?? '--';
+    final isEnabled = _selectionState.activeCell != null;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
-    return Material(
-      elevation: 1,
-      borderRadius: BorderRadius.circular(8),
-      color: Theme.of(context).colorScheme.surface,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.outline.withOpacity(0.18)),
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
@@ -84,27 +97,47 @@ class _FormulaBarState extends State<FormulaBar> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceVariant,
-                borderRadius: BorderRadius.circular(6),
+                color: colorScheme.surfaceContainerHighest.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
-                cellLabel,
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
+              child: Text(cellLabel, style: theme.textTheme.labelLarge),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: TextField(
                 controller: _controller,
                 enabled: isEnabled,
                 decoration: const InputDecoration(
-                  hintText: 'Saisissez une valeur ou une formule…',
-                  border: OutlineInputBorder(),
+                  hintText: 'Valeur ou formule',
+                  border: InputBorder.none,
+                  isCollapsed: true,
                   isDense: true,
                 ),
-                onChanged: selectionState.updateEditingValue,
-                onSubmitted: (_) => selectionState.commitEditingValue(),
-                onEditingComplete: selectionState.commitEditingValue,
+                minLines: 1,
+                maxLines: 1,
+                textInputAction: TextInputAction.done,
+                style: theme.textTheme.bodyMedium,
+                onChanged: _selectionState.updateEditingValue,
+                onSubmitted: (_) {
+                  _selectionState.commitEditingValue();
+                  _commitAndAdvance();
+                },
+                onEditingComplete: () {
+                  _selectionState.commitEditingValue();
+                },
+              ),
+            ),
+            Tooltip(
+              message: 'Valider',
+              child: IconButton(
+                icon: const Icon(Icons.check_circle_outline),
+                splashRadius: 18,
+                onPressed: isEnabled
+                    ? () {
+                        _selectionState.commitEditingValue();
+                        _commitAndAdvance();
+                      }
+                    : null,
               ),
             ),
           ],

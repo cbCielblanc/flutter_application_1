@@ -34,8 +34,8 @@ class InsertColumnCommand extends WorkbookCommand {
     final insertIndex = desiredIndex < 0
         ? 0
         : desiredIndex > existingColumnCount
-            ? existingColumnCount
-            : desiredIndex;
+        ? existingColumnCount
+        : desiredIndex;
 
     for (var r = 0; r < rows.length; r++) {
       final row = rows[r];
@@ -47,8 +47,11 @@ class InsertColumnCommand extends WorkbookCommand {
 
     final normalisedRows = normaliseCellCoordinates(rows);
     final updatedSheet = rebuildSheetFromRows(sheet, normalisedRows);
-    final Workbook updatedWorkbook =
-        replaceSheetAtPageIndex(context.workbook, pageIndex, updatedSheet);
+    final Workbook updatedWorkbook = replaceSheetAtPageIndex(
+      context.workbook,
+      pageIndex,
+      updatedSheet,
+    );
 
     return WorkbookCommandResult(
       workbook: updatedWorkbook,

@@ -15,35 +15,47 @@ class NotesPageView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             page.name,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: theme.textTheme.headlineSmall,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            'Consignez vos idées ou informations importantes.',
+            'Consignez vos idees ou informations importantes.',
             style: theme.textTheme.bodyMedium,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           Expanded(
-            child: TextField(
-              controller: controller,
-              expands: true,
-              maxLines: null,
-              minLines: null,
-              keyboardType: TextInputType.multiline,
-              textAlignVertical: TextAlignVertical.top,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: 'Saisissez vos notes...',
-                alignLabelWithHint: true,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: colorScheme.outlineVariant.withOpacity(0.4),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: TextField(
+                  controller: controller,
+                  expands: true,
+                  maxLines: null,
+                  minLines: null,
+                  keyboardType: TextInputType.multiline,
+                  textAlignVertical: TextAlignVertical.top,
+                  style: theme.textTheme.bodyMedium,
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    hintText: 'Saisissez vos notes...',
+                    alignLabelWithHint: true,
+                  ),
+                ),
               ),
             ),
           ),

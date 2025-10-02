@@ -1,4 +1,3 @@
-import '../../domain/sheet.dart';
 import '../../domain/workbook.dart';
 import 'command_utils.dart';
 import 'workbook_command.dart';
@@ -34,15 +33,18 @@ class InsertRowCommand extends WorkbookCommand {
     final insertIndex = desiredIndex < 0
         ? 0
         : desiredIndex > rows.length
-            ? rows.length
-            : desiredIndex;
+        ? rows.length
+        : desiredIndex;
     final newRow = buildEmptyRow(insertIndex, sheet.columnCount);
     rows.insert(insertIndex, newRow);
     final normalisedRows = normaliseCellCoordinates(rows);
 
     final updatedSheet = rebuildSheetFromRows(sheet, normalisedRows);
-    final Workbook updatedWorkbook =
-        replaceSheetAtPageIndex(context.workbook, pageIndex, updatedSheet);
+    final Workbook updatedWorkbook = replaceSheetAtPageIndex(
+      context.workbook,
+      pageIndex,
+      updatedSheet,
+    );
 
     return WorkbookCommandResult(
       workbook: updatedWorkbook,

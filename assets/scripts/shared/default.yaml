@@ -1,0 +1,9 @@
+﻿name: Shared Snippets
+scope: shared
+snippets:
+  highlight_todo:
+    description: 'Marque une cellule TODO dans la colonne adjacente'
+    actions:
+      - set_cell:
+          cell: "{{args.target}}"
+          value: "A suivre"

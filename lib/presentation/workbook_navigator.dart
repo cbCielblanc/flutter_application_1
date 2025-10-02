@@ -1,8 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../application/scripts/models.dart';
+import '../application/scripts/runtime.dart';
+
+import '../application/commands/add_notes_page_command.dart';
 import '../application/commands/add_sheet_command.dart';
 import '../application/commands/command_utils.dart';
+import '../application/commands/remove_notes_page_command.dart';
 import '../application/commands/remove_sheet_command.dart';
 import '../application/commands/workbook_command_manager.dart';
 import '../domain/cell.dart';
@@ -19,13 +25,29 @@ import 'widgets/sheet_grid.dart';
 import 'widgets/workbook_page_tab_bar.dart';
 import 'workbook_page_display.dart';
 
+class CustomAction {
+  CustomAction({
+    required this.id,
+    required this.label,
+    required this.template,
+  });
+
+  final String id;
+  final String label;
+  final String template;
+}
+
 class WorkbookNavigator extends StatefulWidget {
   const WorkbookNavigator({
     super.key,
     required this.commandManager,
+    required this.scriptRuntime,
+    required this.isAdmin,
   });
 
   final WorkbookCommandManager commandManager;
+  final ScriptRuntime scriptRuntime;
+  final bool isAdmin;
 
   @override
   State<WorkbookNavigator> createState() => _WorkbookNavigatorState();
@@ -39,9 +61,24 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       <String, TextEditingController>{};
   final Map<String, VoidCallback> _notesListeners =
       <String, VoidCallback>{};
+  final List<CustomAction> _customActions = <CustomAction>[];
+  late final TextEditingController _customActionLabelController;
+  late final TextEditingController _customActionTemplateController;
+  final TextEditingController _scriptEditorController = TextEditingController();
+  final TextEditingController _sharedScriptKeyController =
+      TextEditingController(text: 'shared_module');
+  ScriptScope _scriptEditorScope = ScriptScope.page;
+  String? _scriptEditorPageName;
+  String _scriptSharedKey = 'shared_module';
+  bool _scriptEditorLoading = false;
+  bool _scriptEditorDirty = false;
+  String? _scriptEditorStatus;
+  ScriptDescriptor? _currentScriptDescriptor;
   late int _currentPageIndex;
 
   WorkbookCommandManager get _manager => widget.commandManager;
+  ScriptRuntime get _runtime => widget.scriptRuntime;
+  bool get _isAdmin => widget.isAdmin;
 
   @override
   void initState() {
@@ -202,25 +239,56 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   }
 
   void _handleNotesChanged(String pageName, String content) {
+
     final workbook = _manager.workbook;
-    final pageIndex = workbook.pages.indexWhere((page) => page.name == pageName);
-    if (pageIndex == -1) {
-      return;
-    }
-    final page = workbook.pages[pageIndex];
-    if (page is! NotesPage) {
-      return;
-    }
-    if (page.content == content) {
-      return;
-    }
-    final updatedPage = page.copyWith(content: content);
-    final updatedWorkbook = replacePage(workbook, pageIndex, updatedPage);
-    _manager.applyExternalUpdate(
-      updatedWorkbook,
-      activePageIndex: _manager.activePageIndex,
+
+    final pageIndex = workbook.pages.indexWhere(
+
+      (page) => page.name == pageName,
+
     );
+
+    if (pageIndex == -1) {
+
+      return;
+
+    }
+
+    final page = workbook.pages[pageIndex];
+
+    if (page is! NotesPage) {
+
+      return;
+
+    }
+
+    if (page.content == content) {
+
+      return;
+
+    }
+
+    final updatedPage = page.copyWith(content: content);
+
+    final updatedWorkbook = replacePage(workbook, pageIndex, updatedPage);
+
+    _manager.applyExternalUpdate(
+
+      updatedWorkbook,
+
+      activePageIndex: _manager.activePageIndex,
+
+    );
+
+    unawaited(
+
+      _runtime.dispatchNotesChanged(page: updatedPage, content: content),
+
+    );
+
   }
+
+
 
   void _handleSelectPage(int pageIndex) {
     final workbook = _manager.workbook;
@@ -234,6 +302,45 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   void _handleAddSheet() {
     _commitActiveSelectionEdits();
     _manager.execute(AddSheetCommand());
+  }
+
+  void _handleAddNotesPage() {
+    _commitActiveSelectionEdits();
+    _manager.execute(AddNotesPageCommand());
+  }
+
+  void _handleRemovePage(int pageIndex) {
+    _commitActiveSelectionEdits();
+    final workbook = _manager.workbook;
+    if (pageIndex < 0 || pageIndex >= workbook.pages.length) {
+      return;
+    }
+    final page = workbook.pages[pageIndex];
+    if (page is Sheet) {
+      final sheetIndex = workbook.sheets.indexOf(page);
+      if (sheetIndex != -1) {
+        _selectionStates.remove(page.name)?.dispose();
+        _manager.execute(RemoveSheetCommand(sheetIndex: sheetIndex));
+      }
+      return;
+    }
+    if (page is NotesPage) {
+      _manager.execute(RemoveNotesPageCommand(pageIndex: pageIndex));
+    }
+  }
+
+  bool _canRemovePage(Workbook workbook, int pageIndex) {
+    if (pageIndex < 0 || pageIndex >= workbook.pages.length) {
+      return false;
+    }
+    final page = workbook.pages[pageIndex];
+    if (page is MenuPage) {
+      return false;
+    }
+    if (page is Sheet) {
+      return workbook.sheets.length > 1;
+    }
+    return true;
   }
 
   void _handleRemoveSheet(int sheetIndex) {
@@ -346,6 +453,8 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
 
         return Column(
           children: [
+            if (_isAdmin) _buildAdminPanel(context),
+            if (_customActions.isNotEmpty) _buildCustomActionsBar(context),
             CommandRibbon(
               commandManager: _manager,
               onBeforeCommand: _commitActiveSelectionEdits,
@@ -354,8 +463,6 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
               tabs: tabs,
               selectedPageIndex: activePageIndex,
               onSelectPage: _handleSelectPage,
-              onAddSheet: _handleAddSheet,
-              onRemoveSheet: _handleRemoveSheet,
             ),
             Expanded(
               child: pages.isEmpty
@@ -364,11 +471,47 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                       controller: _pageController,
                       itemCount: pages.length,
                       onPageChanged: (index) {
+
                         final currentWorkbook = _manager.workbook;
+
+                        if (_currentPageIndex >= 0 &&
+
+                            _currentPageIndex < currentWorkbook.pages.length) {
+
+                          final previousPage =
+
+                              currentWorkbook.pages[_currentPageIndex];
+
+                          unawaited(_runtime.dispatchPageLeave(previousPage));
+
+                        }
+
                         _commitEditsForPage(currentWorkbook, _currentPageIndex);
+
                         _currentPageIndex = index;
+
+                        if (index >= 0 && index < currentWorkbook.pages.length) {
+
+                          final nextPage = currentWorkbook.pages[index];
+
+                          unawaited(_runtime.ensurePageScript(nextPage));
+
+                          unawaited(_runtime.dispatchPageEnter(nextPage));
+
+                          if (_scriptEditorScope == ScriptScope.page) {
+
+                            _scriptEditorPageName = nextPage.name;
+
+                            unawaited(_loadScriptEditor());
+
+                          }
+
+                        }
+
                         _manager.setActivePage(index);
+
                       },
+
                       itemBuilder: (context, index) {
                         final page = pages[index];
                         if (page is Sheet) {
@@ -409,11 +552,16 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                           );
                         }
                         if (page is MenuPage) {
-                          return MenuPageView(
-                            page: page,
-                            workbook: workbook,
-                            onOpenPage: _handleSelectPage,
-                          );
+                          return MenuPageView(
+                            page: page,
+                            workbook: workbook,
+                            onOpenPage: _handleSelectPage,
+                            onCreateSheet: _handleAddSheet,
+                            onCreateNotes: _handleAddNotesPage,
+                            onRemovePage: _handleRemovePage,
+                            canRemovePage: (index) => _canRemovePage(workbook, index),
+                            enableEditing: _isAdmin,
+                          );
                         }
                         if (page is NotesPage) {
                           final controller =
