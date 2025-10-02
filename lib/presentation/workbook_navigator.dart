@@ -484,6 +484,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     }
   }
 
+
   String _normaliseCustomActionTemplate(String template) {
     var value = template;
     if (value.startsWith('\n')) {
@@ -1054,16 +1055,26 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                           );
                         }
                         if (page is MenuPage) {
-                          return MenuPageView(
-                            page: page,
-                            workbook: workbook,
-                            onOpenPage: _handleSelectPage,
-                            onCreateSheet: _handleAddSheet,
-                            onCreateNotes: _handleAddNotesPage,
-                            onRemovePage: _handleRemovePage,
-                            canRemovePage: (index) => _canRemovePage(workbook, index),
-                            enableEditing: _isAdmin,
-                          );
+                          return MenuPageView(
+
+                            page: page,
+
+                            workbook: workbook,
+
+                            onOpenPage: _handleSelectPage,
+
+                            onCreateSheet: _handleAddSheet,
+
+                            onCreateNotes: _handleAddNotesPage,
+
+                            onRemovePage: _handleRemovePage,
+
+                            canRemovePage: (index) => _canRemovePage(workbook, index),
+
+                            enableEditing: _isAdmin,
+
+                          );
+
                         }
                         if (page is NotesPage) {
                           final controller =
