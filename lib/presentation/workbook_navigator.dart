@@ -484,26 +484,50 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     }
   }
 
+
+  String _normaliseCustomActionTemplate(String template) {
+    var value = template;
+    if (value.startsWith('\n')) {
+      value = value.substring(1);
+    }
+    if (!value.endsWith('\n')) {
+      value = '$value\n';
+    }
+    return value;
+  }
+
   void _initialiseCustomActions() {
     if (_customActions.isNotEmpty) {
       return;
     }
-    _customActions.addAll(const <CustomAction>[
+    _customActions.addAll(<CustomAction>[
       CustomAction(
         id: 'log',
         label: 'Ajouter un log',
-        template: '  - log:\n      message: "Votre message"\n',
+        template: _normaliseCustomActionTemplate('''
+  - log:
+      message: "Votre message"
+'''),
       ),
       CustomAction(
         id: 'set_cell',
         label: 'Ecrire une cellule',
-        template: '  - set_cell:\n      cell: A1\n      value: "=B1"\n',
+        template: _normaliseCustomActionTemplate('''
+  - set_cell:
+      cell: A1
+      value: "=B1"
+'''),
       ),
       CustomAction(
         id: 'run_snippet',
         label: 'Executer un snippet',
-        template:
-            '  - run_snippet:\n      module: shared/default\n      name: votre_snippet\n      args:\n        target: A1\n',
+        template: _normaliseCustomActionTemplate('''
+  - run_snippet:
+      module: shared/default
+      name: votre_snippet
+      args:
+        target: A1
+'''),
       ),
     ]);
   }
@@ -1031,16 +1055,26 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                           );
                         }
                         if (page is MenuPage) {
-                          return MenuPageView(
-                            page: page,
-                            workbook: workbook,
-                            onOpenPage: _handleSelectPage,
-                            onCreateSheet: _handleAddSheet,
-                            onCreateNotes: _handleAddNotesPage,
-                            onRemovePage: _handleRemovePage,
-                            canRemovePage: (index) => _canRemovePage(workbook, index),
-                            enableEditing: _isAdmin,
-                          );
+                          return MenuPageView(
+
+                            page: page,
+
+                            workbook: workbook,
+
+                            onOpenPage: _handleSelectPage,
+
+                            onCreateSheet: _handleAddSheet,
+
+                            onCreateNotes: _handleAddNotesPage,
+
+                            onRemovePage: _handleRemovePage,
+
+                            canRemovePage: (index) => _canRemovePage(workbook, index),
+
+                            enableEditing: _isAdmin,
+
+                          );
+
                         }
                         if (page is NotesPage) {
                           final controller =
