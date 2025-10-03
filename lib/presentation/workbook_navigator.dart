@@ -85,6 +85,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   bool _scriptEditorFullscreen = false;
   bool _scriptEditorSplitPreview = false;
   bool _scriptEditorMutable = true;
+  WidgetBuilder? _scriptEditorOverlayBuilder;
   late int _currentPageIndex;
   final List<StoredScript> _scriptLibrary = <StoredScript>[];
   bool _scriptLibraryLoading = false;
@@ -964,44 +965,67 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     final scriptFileName = descriptor?.fileName;
     final activeDescriptor = _descriptorForSelection() ?? descriptor;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: DefaultTabController(
-        length: 2,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              color: theme.colorScheme.surface,
-              child: TabBar(
-                labelColor: theme.colorScheme.primary,
-                indicatorColor: theme.colorScheme.primary,
-                tabs: const [
-                  Tab(icon: Icon(Icons.code), text: 'Scripts'),
-                  Tab(icon: Icon(Icons.menu_book_outlined), text: 'Documentation'),
-                ],
-              ),
-            ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _buildAdminEditorLayout(
-                    context: context,
-                    codeTheme: codeTheme,
-                    lineNumberStyle: lineNumberStyle,
-                    pages: pages,
-                    activeDescriptor: activeDescriptor,
-                    scriptFileName: scriptFileName,
-                    status: status,
-                  ),
-                  _buildAdminDocumentationTab(context),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+    final editorLayout = _buildAdminEditorLayout(
+      context: context,
+      codeTheme: codeTheme,
+      lineNumberStyle: lineNumberStyle,
+      pages: pages,
+      activeDescriptor: activeDescriptor,
+      scriptFileName: scriptFileName,
+      status: status,
     );
+
+    final overlayBuilder = _scriptEditorOverlayBuilder ??
+        (_) => const SizedBox.shrink();
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Card(
+          clipBehavior: Clip.antiAlias,
+          child: DefaultTabController(
+            length: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  color: theme.colorScheme.surface,
+                  child: TabBar(
+                    labelColor: theme.colorScheme.primary,
+                    indicatorColor: theme.colorScheme.primary,
+                    tabs: const [
+                      Tab(icon: Icon(Icons.code), text: 'Scripts'),
+                      Tab(icon: Icon(Icons.menu_book_outlined), text: 'Documentation'),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      editorLayout,
+                      _buildAdminDocumentationTab(context),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        _ScriptEditorOverlayHost(
+          isActive: _scriptEditorFullscreen,
+          overlayBuilder: overlayBuilder,
+        ),
+      ],
+    );
+  }
+
+  void _handleExitScriptEditorFullscreen() {
+    if (!_scriptEditorFullscreen) {
+      return;
+    }
+    setState(() {
+      _scriptEditorFullscreen = false;
+    });
   }
 
   Widget _buildAdminEditorLayout({
@@ -1041,9 +1065,13 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                 : 'Afficher en plein écran',
             color: _scriptEditorFullscreen ? theme.colorScheme.primary : null,
             onPressed: () {
-              setState(() {
-                _scriptEditorFullscreen = !_scriptEditorFullscreen;
-              });
+              if (_scriptEditorFullscreen) {
+                _handleExitScriptEditorFullscreen();
+              } else {
+                setState(() {
+                  _scriptEditorFullscreen = true;
+                });
+              }
             },
             icon: Icon(
               _scriptEditorFullscreen
@@ -1142,58 +1170,52 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       ],
     );
 
-    return Stack(
-      children: [
-        Offstage(
-          offstage: _scriptEditorFullscreen,
-          child: baseLayout,
-        ),
-        if (_scriptEditorFullscreen)
-          Positioned.fill(
-            child: Material(
-              color: theme.colorScheme.surface,
-              child: SafeArea(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Padding(
+    _scriptEditorOverlayBuilder = (_) {
+      return Positioned.fill(
+        child: Theme(
+          data: theme,
+          child: Scaffold(
+            backgroundColor: theme.colorScheme.surface,
+            body: SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Espace de développement',
+                            style: theme.textTheme.titleMedium,
+                          ),
+                        ),
+                        FilledButton.icon(
+                          onPressed: _handleExitScriptEditorFullscreen,
+                          icon: const Icon(Icons.fullscreen_exit),
+                          label: const Text('Quitter le plein écran'),
+                        ),
+                        const SizedBox(width: 12),
+                        ...buildActionButtons(includeFullscreenToggle: false),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Espace de développement',
-                              style: theme.textTheme.titleMedium,
-                            ),
-                          ),
-                          FilledButton.icon(
-                            onPressed: () {
-                              setState(() {
-                                _scriptEditorFullscreen = false;
-                              });
-                            },
-                            icon: const Icon(Icons.fullscreen_exit),
-                            label: const Text('Quitter le plein écran'),
-                          ),
-                          const SizedBox(width: 12),
-                          ...buildActionButtons(includeFullscreenToggle: false),
-                        ],
-                      ),
+                      child: buildEditorContent(fullscreen: true),
                     ),
-                    const Divider(height: 1),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                        child: buildEditorContent(fullscreen: true),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
-      ],
-    );
+        ),
+      );
+    };
+
+    return baseLayout;
   }
 
   Widget _buildScriptEditorSurface({
@@ -1877,6 +1899,83 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
         );
       },
     );
+  }
+}
+
+class _ScriptEditorOverlayHost extends StatefulWidget {
+  const _ScriptEditorOverlayHost({
+    required this.isActive,
+    required this.overlayBuilder,
+  });
+
+  final bool isActive;
+  final WidgetBuilder overlayBuilder;
+
+  @override
+  State<_ScriptEditorOverlayHost> createState() =>
+      _ScriptEditorOverlayHostState();
+}
+
+class _ScriptEditorOverlayHostState extends State<_ScriptEditorOverlayHost> {
+  OverlayEntry? _entry;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isActive) {
+      _insertEntry();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _ScriptEditorOverlayHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isActive && widget.isActive) {
+      _insertEntry();
+    } else if (oldWidget.isActive && !widget.isActive) {
+      _removeEntry();
+    } else if (widget.isActive && _entry != null) {
+      _entry!.markNeedsBuild();
+    }
+  }
+
+  void _insertEntry() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.isActive) {
+        return;
+      }
+      if (_entry != null) {
+        _entry!.markNeedsBuild();
+        return;
+      }
+      final overlay = Overlay.of(context, rootOverlay: true);
+      if (overlay == null) {
+        return;
+      }
+      _entry = OverlayEntry(
+        builder: (context) => widget.overlayBuilder(context),
+      );
+      overlay.insert(_entry!);
+    });
+  }
+
+  void _removeEntry() {
+    _entry?.remove();
+    _entry = null;
+  }
+
+  @override
+  void dispose() {
+    _removeEntry();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.isActive && _entry != null) {
+      _entry!.markNeedsBuild();
+    }
+    return const SizedBox.shrink();
   }
 }
 
