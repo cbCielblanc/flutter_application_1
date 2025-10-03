@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:code_text_field/code_text_field.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:highlight/languages/yaml.dart';
@@ -199,8 +200,43 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       }
     }
     if (_isAdmin) {
-      unawaited(_refreshScriptLibrary(silent: true));
+      unawaited(_synchronisePageScriptsWithWorkbook(workbook));
     }
+  }
+
+  Future<void> _synchronisePageScriptsWithWorkbook(Workbook workbook) async {
+    if (!_isAdmin) {
+      return;
+    }
+    final createdPages = <String>[];
+    for (final page in workbook.pages) {
+      final descriptor = ScriptDescriptor(
+        scope: ScriptScope.page,
+        key: normaliseScriptKey(page.name),
+      );
+      if (_hasScriptDescriptor(descriptor)) {
+        continue;
+      }
+      final existing = await _runtime.storage.loadScript(descriptor);
+      if (existing != null) {
+        continue;
+      }
+      final template = _defaultScriptTemplate(descriptor);
+      final stored = await _runtime.storage.saveScript(descriptor, template);
+      createdPages.add(page.name);
+      debugPrint(
+        'Script automatiquement créé pour la page "${page.name}" (${stored.origin}).',
+      );
+    }
+    if (createdPages.isNotEmpty && mounted) {
+      setState(() {
+        final notice =
+            'Scripts créés automatiquement pour: ${createdPages.join(', ')}.';
+        _scriptEditorStatus =
+            _scriptEditorStatus == null ? notice : '${_scriptEditorStatus!}\n$notice';
+      });
+    }
+    await _refreshScriptLibrary(silent: true);
   }
 
   void _jumpToPage(int index) {
@@ -815,20 +851,32 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       _scriptEditorStatus = 'Chargement de ${descriptor.fileName}...';
     });
     try {
-      final stored = await _runtime.storage.loadScript(descriptor);
+      final existing = await _runtime.storage.loadScript(descriptor);
+      late final StoredScript stored;
+      var createdFromTemplate = false;
+      if (existing == null) {
+        final template = _defaultScriptTemplate(descriptor);
+        stored = await _runtime.storage.saveScript(descriptor, template);
+        createdFromTemplate = true;
+        debugPrint(
+          'Script manquant pour ${descriptor.fileName}. Modèle sauvegardé dans ${stored.origin}.',
+        );
+        await _refreshScriptLibrary(silent: true);
+      } else {
+        stored = existing;
+      }
       if (!mounted) {
         return;
       }
       setState(() {
         _currentScriptDescriptor = descriptor;
         _suppressScriptEditorChanges = true;
-        _scriptEditorController.text = stored?.source ??
-            _defaultScriptTemplate(descriptor);
+        _scriptEditorController.text = stored.source;
         _suppressScriptEditorChanges = false;
         _scriptEditorDirty = false;
-        _scriptEditorStatus = stored == null
-            ? 'Aucun script trouve. Un modele par defaut a ete genere.'
-            : 'Script charge depuis ${stored.origin}.';
+        _scriptEditorStatus = createdFromTemplate
+            ? 'Script absent. Modèle par défaut créé et sauvegardé (${stored.origin}).'
+            : 'Script chargé depuis ${stored.origin}.';
       });
     } catch (error) {
       if (!mounted) {
