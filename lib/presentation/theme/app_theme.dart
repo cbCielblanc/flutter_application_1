@@ -32,7 +32,7 @@ class AppTheme {
                 const TextStyle(fontSize: 20, fontWeight: FontWeight.w600))
             .copyWith(color: const Color(0xFF111827)),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: Colors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -117,3 +117,4 @@ class AppTheme {
     );
   }
 }
+
