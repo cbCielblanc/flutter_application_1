@@ -1202,9 +1202,25 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                   ),
                   const Divider(height: 1),
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                      child: buildEditorContent(fullscreen: true),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(
+                          width: 240,
+                          child: _buildScriptLibraryPanel(
+                            context: context,
+                            pages: pages,
+                            activeDescriptor: activeDescriptor,
+                          ),
+                        ),
+                        const VerticalDivider(width: 1),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                            child: buildEditorContent(fullscreen: true),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
