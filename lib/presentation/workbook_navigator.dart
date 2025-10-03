@@ -1221,6 +1221,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                 child: TopAlignedCodeField(
                   controller: _scriptEditorController,
                   expands: true,
+                  textAlignVertical: TextAlignVertical.top,
                   textStyle: const TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 13,
@@ -1228,6 +1229,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                   lineNumberStyle: lineNumberStyle,
                   padding: const EdgeInsets.all(12),
                   background: theme.colorScheme.surface,
+                  textAlignVertical: TextAlignVertical.top,
                 ),
               ),
             ),
