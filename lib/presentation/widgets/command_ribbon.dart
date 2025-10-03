@@ -52,61 +52,51 @@ class CommandRibbon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final dividerColor = theme.colorScheme.outline.withOpacity(0.15);
     return AnimatedBuilder(
       animation: commandManager,
       builder: (context, _) {
         final currentPageName = _activePageName(_workbook, commandManager.activePageIndex);
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Material(
-            color: colorScheme.surface,
-            elevation: 2,
-            shadowColor: Colors.black.withOpacity(0.06),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: SizedBox(
-              height: 60,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    _ToolbarIconButton(
-                      icon: Icons.undo,
-                      tooltip: 'Annuler',
-                      onPressed: commandManager.canUndo
-                          ? () {
-                              onBeforeCommand?.call();
-                              commandManager.undo();
-                            }
-                          : null,
-                    ),
-                    _ToolbarIconButton(
-                      icon: Icons.redo,
-                      tooltip: 'Retablir',
-                      onPressed: commandManager.canRedo
-                          ? () {
-                              onBeforeCommand?.call();
-                              commandManager.redo();
-                            }
-                          : null,
-                    ),
-                    const VerticalDivider(width: 24, thickness: 1),
-                    for (final menu in _menus) ...[
-                      _CommandMenu(
-                        config: menu,
-                        manager: commandManager,
-                        onBeforeCommand: onBeforeCommand,
-                      ),
-                      const SizedBox(width: 6),
-                    ],
-                    const Spacer(),
-                    _ActivePageBadge(name: currentPageName),
-                  ],
-                ),
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            border: Border(bottom: BorderSide(color: dividerColor)),
+          ),
+          child: Row(
+            children: [
+              _ToolbarIconButton(
+                icon: Icons.undo,
+                tooltip: 'Annuler',
+                onPressed: commandManager.canUndo
+                    ? () {
+                        onBeforeCommand?.call();
+                        commandManager.undo();
+                      }
+                    : null,
               ),
-            ),
+              _ToolbarIconButton(
+                icon: Icons.redo,
+                tooltip: 'Retablir',
+                onPressed: commandManager.canRedo
+                    ? () {
+                        onBeforeCommand?.call();
+                        commandManager.redo();
+                      }
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              for (final menu in _menus) ...[
+                _CommandMenu(
+                  config: menu,
+                  manager: commandManager,
+                  onBeforeCommand: onBeforeCommand,
+                ),
+                const SizedBox(width: 8),
+              ],
+              const Spacer(),
+              _ActivePageBadge(name: currentPageName),
+            ],
           ),
         );
       },
@@ -166,34 +156,29 @@ class _CommandMenu extends StatelessWidget {
       return prototype.canExecute(manager.context);
     });
 
+    final foreground = enabled ? colorScheme.primary : theme.disabledColor;
+
     final menuButton = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: enabled ? colorScheme.surfaceContainerHighest.withOpacity(0.4) : null,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.2)),
+        color: theme.colorScheme.surface,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            config.icon,
-            size: 20,
-            color: enabled ? colorScheme.primary : theme.disabledColor,
-          ),
+          Icon(config.icon, size: 18, color: foreground),
           const SizedBox(width: 8),
           Text(
             config.label,
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: enabled ? theme.textTheme.bodyMedium?.color : theme.disabledColor,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: foreground,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(width: 4),
-          Icon(
-            Icons.keyboard_arrow_down_rounded,
-            size: 18,
-            color: enabled ? colorScheme.primary : theme.disabledColor,
-          ),
+          Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: foreground),
         ],
       ),
     );
@@ -215,7 +200,7 @@ class _CommandMenu extends StatelessWidget {
         manager.execute(builder());
       },
       position: PopupMenuPosition.under,
-      offset: const Offset(0, 6),
+      offset: const Offset(0, 4),
       child: menuButton,
     );
   }
@@ -261,19 +246,16 @@ class _ActivePageBadge extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: colorScheme.primary.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colorScheme.outline.withOpacity(0.2)),
+        color: colorScheme.surface,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.folder_open,
-            size: 18,
-            color: colorScheme.primary,
-          ),
+          Icon(Icons.folder_open, size: 18, color: colorScheme.primary),
           const SizedBox(width: 8),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 220),

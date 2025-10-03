@@ -6,6 +6,7 @@ import 'package:highlight/languages/yaml.dart';
 
 import '../application/scripts/models.dart';
 import '../application/scripts/runtime.dart';
+import '../application/scripts/storage.dart';
 
 import '../application/commands/add_notes_page_command.dart';
 import '../application/commands/add_sheet_command.dart';
@@ -80,6 +81,9 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   ScriptDescriptor? _currentScriptDescriptor;
   bool _suppressScriptEditorChanges = false;
   late int _currentPageIndex;
+  final List<StoredScript> _scriptLibrary = <StoredScript>[];
+  bool _scriptLibraryLoading = false;
+  String? _scriptLibraryError;
 
   WorkbookCommandManager get _manager => widget.commandManager;
   ScriptRuntime get _runtime => widget.scriptRuntime;
@@ -98,6 +102,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     _sharedScriptKeyController.addListener(_handleSharedScriptKeyChanged);
     if (_isAdmin) {
       _initialiseCustomActions();
+      unawaited(_refreshScriptLibrary());
     }
     final initialPageIndex = _manager.activePageIndex;
     final pages = _manager.workbook.pages;
@@ -133,6 +138,16 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
         initialPage: newIndex < 0 ? 0 : newIndex,
       );
       widget.commandManager.addListener(_handleManagerChanged);
+    }
+    if (!oldWidget.isAdmin && widget.isAdmin) {
+      _initialiseCustomActions();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        unawaited(_refreshScriptLibrary());
+        unawaited(_loadScriptEditor());
+      });
     }
   }
 
@@ -180,6 +195,9 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
           }
         }
       }
+    }
+    if (_isAdmin) {
+      unawaited(_refreshScriptLibrary(silent: true));
     }
   }
 
@@ -492,6 +510,154 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     }
   }
 
+  Future<void> _refreshScriptLibrary({bool silent = false}) async {
+    if (!_isAdmin) {
+      return;
+    }
+    if (!silent) {
+      setState(() {
+        _scriptLibraryLoading = true;
+        _scriptLibraryError = null;
+      });
+    }
+    try {
+      final scripts = await _runtime.storage.loadAll();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _scriptLibrary
+          ..clear()
+          ..addAll(scripts);
+        _scriptLibraryLoading = false;
+        _scriptLibraryError = null;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _scriptLibraryLoading = false;
+        _scriptLibraryError = 'Erreur de chargement: $error';
+      });
+    }
+  }
+
+  ScriptDescriptor? _descriptorForSelection() {
+    switch (_scriptEditorScope) {
+      case ScriptScope.global:
+        return const ScriptDescriptor(scope: ScriptScope.global, key: 'default');
+      case ScriptScope.page:
+        final pageName = _scriptEditorPageName;
+        if (pageName == null || pageName.isEmpty) {
+          return null;
+        }
+        return ScriptDescriptor(
+          scope: ScriptScope.page,
+          key: normaliseScriptKey(pageName),
+        );
+      case ScriptScope.shared:
+        if (_scriptSharedKey.isEmpty) {
+          return null;
+        }
+        return ScriptDescriptor(scope: ScriptScope.shared, key: _scriptSharedKey);
+    }
+  }
+
+  bool _hasScriptDescriptor(ScriptDescriptor descriptor) {
+    return _scriptLibrary.any(
+      (script) =>
+          script.descriptor.scope == descriptor.scope &&
+          script.descriptor.key == descriptor.key,
+    );
+  }
+
+  Future<void> _handleSelectScriptDescriptor(
+    ScriptDescriptor descriptor, {
+    String? pageName,
+    String? rawSharedKey,
+  }) async {
+    setState(() {
+      _scriptEditorScope = descriptor.scope;
+      switch (descriptor.scope) {
+        case ScriptScope.global:
+          break;
+        case ScriptScope.page:
+          String? resolvedName = pageName;
+          if (resolvedName == null) {
+            for (final page in _manager.workbook.pages) {
+              if (normaliseScriptKey(page.name) == descriptor.key) {
+                resolvedName = page.name;
+                break;
+              }
+            }
+          }
+          if (resolvedName != null) {
+            _scriptEditorPageName = resolvedName;
+          }
+          break;
+        case ScriptScope.shared:
+          final rawValue = rawSharedKey ?? descriptor.key;
+          _sharedScriptKeyController.removeListener(_handleSharedScriptKeyChanged);
+          _sharedScriptKeyController.text = rawValue;
+          _sharedScriptKeyController.selection =
+              TextSelection.collapsed(offset: rawValue.length);
+          _sharedScriptKeyController.addListener(_handleSharedScriptKeyChanged);
+          _scriptSharedKey = normaliseScriptKey(rawValue);
+          break;
+      }
+    });
+    await _loadScriptEditor();
+  }
+
+  Future<void> _promptNewSharedModule(BuildContext context) async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Nouveau module partagé'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Nom du module',
+              hintText: 'ex: automatisations',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop(controller.text.trim());
+              },
+              child: const Text('Créer'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (result == null) {
+      return;
+    }
+    final raw = result.trim();
+    if (raw.isEmpty) {
+      return;
+    }
+    final descriptor = ScriptDescriptor(
+      scope: ScriptScope.shared,
+      key: normaliseScriptKey(raw),
+    );
+    await _handleSelectScriptDescriptor(
+      descriptor,
+      rawSharedKey: raw,
+    );
+  }
+
 
   String _normaliseCustomActionTemplate(String template) {
     var value = template;
@@ -540,24 +706,6 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     ]);
   }
 
-  void _handleScriptScopeChanged(ScriptScope scope) {
-    if (_scriptEditorScope == scope) {
-      return;
-    }
-    setState(() {
-      _scriptEditorScope = scope;
-      if (scope == ScriptScope.page) {
-        final pages = _manager.workbook.pages;
-        if (pages.isEmpty) {
-          _scriptEditorPageName = null;
-        } else if (!pages.any((page) => page.name == _scriptEditorPageName)) {
-          _scriptEditorPageName = pages.first.name;
-        }
-      }
-    });
-    unawaited(_loadScriptEditor());
-  }
-
   Future<void> _handleSaveScript() async {
     final descriptor = _resolveScriptDescriptor();
     if (descriptor == null) {
@@ -575,6 +723,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       final stored =
           await _runtime.storage.saveScript(descriptor, _scriptEditorController.text);
       await _runtime.reload();
+      await _refreshScriptLibrary(silent: true);
       if (!mounted) {
         return;
       }
@@ -606,6 +755,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
         _scriptEditorStatus = 'Rechargement des scripts...';
       });
       await _runtime.reload();
+      await _refreshScriptLibrary(silent: true);
       await _loadScriptEditor();
     } catch (error) {
       if (!mounted) {
@@ -724,70 +874,50 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     }
   }
 
-  String _scopeLabel(ScriptScope scope) {
-    switch (scope) {
-      case ScriptScope.global:
-        return 'Global';
-      case ScriptScope.page:
-        return 'Page';
-      case ScriptScope.shared:
-        return 'Module partage';
-    }
-  }
-
   Widget _buildAdminWorkspace(BuildContext context) {
     final theme = Theme.of(context);
-    final scope = _scriptEditorScope;
     final workbook = _manager.workbook;
     final pages = workbook.pages;
-    final availableNames = pages.map((page) => page.name).toList(growable: false);
-    final selectedPageName = availableNames.contains(_scriptEditorPageName)
-        ? _scriptEditorPageName
-        : (availableNames.isNotEmpty ? availableNames.first : null);
     final isDark = theme.brightness == Brightness.dark;
     final codeTheme = CodeThemeData(
       styles: isDark ? monokaiSublimeTheme : githubTheme,
     );
     final lineNumberStyle = LineNumberStyle(
-      width: 56,
+      width: 48,
       textStyle: theme.textTheme.bodySmall,
     );
     final descriptor = _currentScriptDescriptor;
     final status = _scriptEditorStatus;
     final scriptFileName = descriptor?.fileName;
+    final activeDescriptor = _descriptorForSelection() ?? descriptor;
 
-    return DefaultTabController(
-      length: 2,
-      child: Card(
-        elevation: 4,
-        clipBehavior: Clip.antiAlias,
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: DefaultTabController(
+        length: 2,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Material(
-              color: theme.colorScheme.primaryContainer,
+            Container(
+              color: theme.colorScheme.surface,
               child: TabBar(
-                labelColor: theme.colorScheme.onPrimaryContainer,
-                indicatorColor: theme.colorScheme.onPrimaryContainer,
+                labelColor: theme.colorScheme.primary,
+                indicatorColor: theme.colorScheme.primary,
                 tabs: const [
-                  Tab(icon: Icon(Icons.code), text: 'Éditeur'),
-                  Tab(
-                    icon: Icon(Icons.menu_book_outlined),
-                    text: 'Documentation',
-                  ),
+                  Tab(icon: Icon(Icons.code), text: 'Scripts'),
+                  Tab(icon: Icon(Icons.menu_book_outlined), text: 'Documentation'),
                 ],
               ),
             ),
             Expanded(
               child: TabBarView(
                 children: [
-                  _buildAdminEditorTab(
+                  _buildAdminEditorLayout(
                     context: context,
                     codeTheme: codeTheme,
                     lineNumberStyle: lineNumberStyle,
-                    scope: scope,
                     pages: pages,
-                    selectedPageName: selectedPageName,
+                    activeDescriptor: activeDescriptor,
                     scriptFileName: scriptFileName,
                     status: status,
                   ),
@@ -801,24 +931,23 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     );
   }
 
-  Widget _buildAdminEditorTab({
+  Widget _buildAdminEditorLayout({
     required BuildContext context,
     required CodeThemeData codeTheme,
     required LineNumberStyle lineNumberStyle,
-    required ScriptScope scope,
     required List<WorkbookPage> pages,
-    required String? selectedPageName,
+    required ScriptDescriptor? activeDescriptor,
     required String? scriptFileName,
     required String? status,
   }) {
     final theme = Theme.of(context);
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Row(
             children: [
               Expanded(
                 child: Text(
@@ -831,135 +960,225 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                 onPressed: _scriptEditorLoading ? null : _handleReloadScripts,
                 icon: const Icon(Icons.refresh),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              DropdownButton<ScriptScope>(
-                value: scope,
-                onChanged: (value) {
-                  if (value != null) {
-                    _handleScriptScopeChanged(value);
-                  }
-                },
-                items: ScriptScope.values
-                    .map(
-                      (value) => DropdownMenuItem<ScriptScope>(
-                        value: value,
-                        child: Text(_scopeLabel(value)),
-                      ),
-                    )
-                    .toList(growable: false),
-              ),
-              if (scope == ScriptScope.page)
-                DropdownButton<String>(
-                  value: selectedPageName,
-                  hint: const Text('Page'),
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-                    if (value != _scriptEditorPageName) {
-                      setState(() {
-                        _scriptEditorPageName = value;
-                      });
-                      unawaited(_loadScriptEditor());
-                    }
-                  },
-                  items: pages
-                      .map(
-                        (page) => DropdownMenuItem<String>(
-                          value: page.name,
-                          child: Text(page.name),
-                        ),
-                      )
-                      .toList(growable: false),
-                ),
-              if (scope == ScriptScope.shared)
-                SizedBox(
-                  width: 220,
-                  child: TextField(
-                    controller: _sharedScriptKeyController,
-                    decoration: InputDecoration(
-                      labelText: 'Module partagé',
-                      helperText: 'Clé normalisée: $_scriptSharedKey',
-                    ),
-                  ),
-                ),
-              OutlinedButton.icon(
-                onPressed: _scriptEditorLoading ? null : _loadScriptEditor,
-                icon: const Icon(Icons.download),
-                label: const Text('Charger'),
-              ),
+              const SizedBox(width: 4),
               FilledButton.icon(
                 onPressed: (_scriptEditorLoading || !_scriptEditorDirty)
                     ? null
                     : _handleSaveScript,
-                icon: const Icon(Icons.save),
+                icon: const Icon(Icons.save_outlined),
                 label: Text(
                   _scriptEditorDirty ? 'Enregistrer*' : 'Enregistrer',
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          if (scriptFileName != null)
-            Text(
-              'Fichier actuel : $scriptFileName',
-              style: theme.textTheme.bodySmall,
-            ),
-          if (scriptFileName != null) const SizedBox(height: 12),
-          if (_customActions.isNotEmpty) _buildCustomActionsBar(context),
-          if (_customActions.isNotEmpty) const SizedBox(height: 12),
-          Expanded(
-            child: CodeTheme(
-              data: codeTheme,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: theme.colorScheme.outline.withOpacity(0.6),
-                  ),
-                  borderRadius: const BorderRadius.all(Radius.circular(8)),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: 240,
+                child: _buildScriptLibraryPanel(
+                  context: context,
+                  pages: pages,
+                  activeDescriptor: activeDescriptor,
                 ),
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: CodeField(
-                        controller: _scriptEditorController,
-                        expands: true,
-                        textStyle: const TextStyle(fontFamily: 'monospace'),
-                        lineNumberStyle: lineNumberStyle,
-                        padding: const EdgeInsets.all(12),
-                        background: theme.colorScheme.surface,
-                      ),
-                    ),
-                    if (_scriptEditorLoading)
-                      const Positioned(
-                        top: 16,
-                        right: 16,
-                        child: SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const VerticalDivider(width: 1),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (scriptFileName != null)
+                        Text(
+                          'Fichier actuel : $scriptFileName',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      if (scriptFileName != null) const SizedBox(height: 8),
+                      if (_customActions.isNotEmpty) _buildCustomActionsBar(context),
+                      if (_customActions.isNotEmpty) const SizedBox(height: 12),
+                      Expanded(
+                        child: CodeTheme(
+                          data: codeTheme,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: theme.colorScheme.outline.withOpacity(0.25),
+                              ),
+                              borderRadius: const BorderRadius.all(Radius.circular(8)),
+                            ),
+                            child: Stack(
+                              children: [
+                                Positioned.fill(
+                                  child: CodeField(
+                                    controller: _scriptEditorController,
+                                    expands: true,
+                                    textStyle: const TextStyle(
+                                      fontFamily: 'monospace',
+                                      fontSize: 13,
+                                    ),
+                                    lineNumberStyle: lineNumberStyle,
+                                    padding: const EdgeInsets.all(12),
+                                    background: theme.colorScheme.surface,
+                                  ),
+                                ),
+                                if (_scriptEditorLoading)
+                                  const Positioned(
+                                    top: 16,
+                                    right: 16,
+                                    child: SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      if (status != null)
+                        Text(
+                          status,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildScriptLibraryPanel({
+    required BuildContext context,
+    required List<WorkbookPage> pages,
+    required ScriptDescriptor? activeDescriptor,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final sharedScripts = _scriptLibrary
+        .where((script) => script.descriptor.scope == ScriptScope.shared)
+        .toList()
+      ..sort((a, b) => a.descriptor.key.compareTo(b.descriptor.key));
+
+    final globalDescriptor =
+        const ScriptDescriptor(scope: ScriptScope.global, key: 'default');
+    final globalHasScript = _hasScriptDescriptor(globalDescriptor);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Text('Bibliothèque de scripts', style: theme.textTheme.titleSmall),
+        ),
+        Expanded(
+          child: _scriptLibraryLoading
+              ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+              : ListView(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  children: [
+                    const _ScriptGroupHeader(title: 'Classeur'),
+                    _ScriptLibraryTile(
+                      icon: Icons.language,
+                      label: 'Script global',
+                      subtitle: globalHasScript
+                          ? 'Script existant'
+                          : 'Déclenché pour tout le classeur',
+                      selected: activeDescriptor?.scope == ScriptScope.global,
+                      hasContent: globalHasScript,
+                      onTap: () => _handleSelectScriptDescriptor(globalDescriptor),
+                    ),
+                    const SizedBox(height: 12),
+                    const _ScriptGroupHeader(title: 'Pages'),
+                    if (pages.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        child: Text(
+                          'Aucune page disponible.',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                    ...pages.map((page) {
+                      final descriptor = ScriptDescriptor(
+                        scope: ScriptScope.page,
+                        key: normaliseScriptKey(page.name),
+                      );
+                      final hasScript = _hasScriptDescriptor(descriptor);
+                      final selected =
+                          activeDescriptor?.scope == ScriptScope.page &&
+                              activeDescriptor?.key == descriptor.key;
+                      return _ScriptLibraryTile(
+                        icon: Icons.grid_on_outlined,
+                        label: page.name,
+                        subtitle: hasScript
+                            ? 'Script existant'
+                            : 'Créer un script pour cette page',
+                        selected: selected,
+                        hasContent: hasScript,
+                        onTap: () => _handleSelectScriptDescriptor(
+                          descriptor,
+                          pageName: page.name,
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 12),
+                    const _ScriptGroupHeader(title: 'Modules partagés'),
+                    if (sharedScripts.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        child: Text(
+                          'Créez un module pour factoriser vos snippets.',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                    ...sharedScripts.map((script) {
+                      final descriptor = script.descriptor;
+                      final selected = activeDescriptor?.scope == ScriptScope.shared &&
+                          activeDescriptor?.key == descriptor.key;
+                      return _ScriptLibraryTile(
+                        icon: Icons.extension,
+                        label: descriptor.key,
+                        subtitle: 'Module partagé',
+                        selected: selected,
+                        hasContent: true,
+                        onTap: () => _handleSelectScriptDescriptor(
+                          descriptor,
+                          rawSharedKey: descriptor.key,
+                        ),
+                      );
+                    }),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      child: OutlinedButton.icon(
+                        onPressed: () => _promptNewSharedModule(context),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Nouveau module partagé'),
+                      ),
+                    ),
                   ],
                 ),
+        ),
+        if (_scriptLibraryError != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text(
+              _scriptLibraryError!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.error,
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          if (status != null)
-            Text(
-              status,
-              style: theme.textTheme.bodySmall,
-            ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -1199,7 +1418,11 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
           );
         }
 
+        final theme = Theme.of(context);
+        final borderColor = theme.colorScheme.outline.withOpacity(0.15);
+
         final workbookColumn = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             CommandRibbon(
               commandManager: _manager,
@@ -1334,32 +1557,145 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
           ],
         );
 
+        final workbookSurface = Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: workbookColumn,
+          ),
+        );
+
         if (_isAdmin) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
-                  child: workbookColumn,
-                ),
-              ),
-              SizedBox(
-                width: 420,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
-                  child: _buildAdminWorkspace(context),
-                ),
-              ),
-            ],
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 1100;
+              if (isWide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      flex: 7,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
+                        child: workbookSurface,
+                      ),
+                    ),
+                    const VerticalDivider(width: 1),
+                    Expanded(
+                      flex: 5,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 16, 16, 16),
+                        child: _buildAdminWorkspace(context),
+                      ),
+                    ),
+                  ],
+                );
+              }
+              return Column(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: workbookSurface,
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  SizedBox(
+                    height: 420,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      child: _buildAdminWorkspace(context),
+                    ),
+                  ),
+                ],
+              );
+            },
           );
         }
 
         return Padding(
           padding: const EdgeInsets.all(16),
-          child: workbookColumn,
+          child: workbookSurface,
         );
       },
+    );
+  }
+}
+
+class _ScriptGroupHeader extends StatelessWidget {
+  const _ScriptGroupHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+      child: Text(
+        title,
+        style: theme.textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w600,
+          color: theme.colorScheme.primary,
+        ),
+      ),
+    );
+  }
+}
+
+class _ScriptLibraryTile extends StatelessWidget {
+  const _ScriptLibraryTile({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+    required this.selected,
+    required this.hasContent,
+  });
+
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool selected;
+  final bool hasContent;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final foreground =
+        selected ? colorScheme.primary : theme.textTheme.bodyMedium?.color;
+    final background =
+        selected ? colorScheme.primary.withOpacity(0.08) : Colors.transparent;
+
+    return ListTile(
+      dense: true,
+      onTap: onTap,
+      selected: selected,
+      selectedTileColor: background,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      leading: Icon(icon, color: foreground, size: 20),
+      title: Text(
+        label,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: foreground,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: theme.textTheme.bodySmall,
+      ),
+      trailing: Icon(
+        hasContent ? Icons.check_circle : Icons.radio_button_unchecked,
+        size: 16,
+        color: hasContent ? colorScheme.primary : theme.disabledColor,
+      ),
     );
   }
 }

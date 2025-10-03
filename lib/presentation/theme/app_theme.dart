@@ -4,77 +4,49 @@ class AppTheme {
   AppTheme._();
 
   static ThemeData light() {
-    const primarySeed = Color(0xFF4C6EF5);
-    final baseScheme = ColorScheme.fromSeed(
+    const primarySeed = Color(0xFF2563EB);
+    final colorScheme = ColorScheme.fromSeed(
       seedColor: primarySeed,
       brightness: Brightness.light,
     );
 
-    final colorScheme = baseScheme.copyWith(
-      surface: Colors.white,
-      surfaceContainerHighest: const Color(0xFFE8ECF7),
-      secondary: const Color(0xFF38BDF8),
-      secondaryContainer: const Color(0xFFD5F4FF),
-      tertiary: const Color(0xFF10B981),
-      tertiaryContainer: const Color(0xFFD7F9ED),
-    );
-
-    final appliedTextTheme = ThemeData.light().textTheme.apply(
-          bodyColor: const Color(0xFF1B1F3B),
-          displayColor: const Color(0xFF1B1F3B),
+    final textTheme = ThemeData.light().textTheme.apply(
+          bodyColor: const Color(0xFF1F2933),
+          displayColor: const Color(0xFF1F2933),
         );
 
-    final textTheme = appliedTextTheme.copyWith(
-      headlineSmall: (appliedTextTheme.headlineSmall ??
-              const TextStyle(fontSize: 24, fontWeight: FontWeight.w600))
-          .copyWith(
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.2,
-      ),
-      titleMedium: (appliedTextTheme.titleMedium ??
-              const TextStyle(fontSize: 16, fontWeight: FontWeight.w500))
-          .copyWith(
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.1,
-      ),
-      bodyMedium: (appliedTextTheme.bodyMedium ??
-              const TextStyle(fontSize: 14, height: 1.4))
-          .copyWith(height: 1.45),
-      labelLarge: (appliedTextTheme.labelLarge ?? const TextStyle(fontSize: 14))
-          .copyWith(fontWeight: FontWeight.w600),
-    );
-
-    final outlineColor = colorScheme.outline.withOpacity(0.3);
+    final subtleSurface = const Color(0xFFF3F4F6);
+    final outline = colorScheme.outline.withOpacity(0.25);
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: colorScheme.surface,
+      scaffoldBackgroundColor: subtleSurface,
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.transparent,
-        foregroundColor: const Color(0xFF1B1F3B),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF111827),
         elevation: 0,
-        centerTitle: true,
+        centerTitle: false,
         titleTextStyle: (textTheme.titleLarge ??
-                const TextStyle(fontSize: 20, fontWeight: FontWeight.w700))
-            .copyWith(color: const Color(0xFF1B1F3B)),
+                const TextStyle(fontSize: 20, fontWeight: FontWeight.w600))
+            .copyWith(color: const Color(0xFF111827)),
       ),
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         color: Colors.white,
-        elevation: 3,
-        shadowColor: Colors.black.withOpacity(0.06),
+        elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: outline),
         ),
         margin: EdgeInsets.zero,
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
@@ -83,72 +55,63 @@ class AppTheme {
           backgroundColor: colorScheme.primary,
           foregroundColor: colorScheme.onPrimary,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           elevation: 0,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
           ),
-          side: BorderSide(color: outlineColor),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          side: BorderSide(color: outline),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: outlineColor),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: outline),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: outlineColor),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: outline),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: colorScheme.primary, width: 1.8),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: colorScheme.primary, width: 1.4),
         ),
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        hintStyle: (textTheme.bodyMedium ??
-                const TextStyle(fontSize: 14, color: Colors.black54))
-            .copyWith(color: const Color(0xFF1B1F3B).withOpacity(0.45)),
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        hintStyle: textTheme.bodyMedium?.copyWith(
+          color: const Color(0xFF6B7280),
+        ),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: Colors.white,
-        selectedColor: colorScheme.primaryContainer,
-        disabledColor: colorScheme.surfaceContainerHighest,
-        labelStyle: (textTheme.labelLarge ?? const TextStyle(fontSize: 14))
-            .copyWith(color: const Color(0xFF1B1F3B)),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        backgroundColor: subtleSurface,
+        selectedColor: colorScheme.primary.withOpacity(0.12),
+        labelStyle: textTheme.labelLarge,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(color: outline),
         ),
       ),
       dividerTheme: DividerThemeData(
-        color: colorScheme.outlineVariant,
+        color: outline,
         thickness: 1,
+        space: 1,
       ),
       scrollbarTheme: ScrollbarThemeData(
-        radius: const Radius.circular(12),
+        radius: const Radius.circular(8),
         thickness: WidgetStateProperty.all(6),
-        thumbVisibility: WidgetStateProperty.all(true),
-        thumbColor: WidgetStateProperty.resolveWith(
-          (states) {
-            final base = colorScheme.primary.withOpacity(0.38);
-            if (states.contains(WidgetState.hovered)) {
-              return colorScheme.primary.withOpacity(0.55);
-            }
-            return base;
-          },
-        ),
-        trackColor: WidgetStateProperty.all(
-          colorScheme.surfaceContainerHighest.withOpacity(0.4),
+        thumbVisibility: WidgetStateProperty.all(false),
+        thumbColor: WidgetStateProperty.all(
+          colorScheme.primary.withOpacity(0.4),
         ),
       ),
     );
