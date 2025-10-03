@@ -949,7 +949,83 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       lineNumberStyle: lineNumberStyle,
     );
 
-    return Column(
+    List<Widget> buildActionButtons({required bool includeFullscreenToggle}) {
+      return [
+        IconButton(
+          tooltip:
+              _scriptEditorSplitPreview ? 'Fermer la vue scindée' : 'Afficher la vue scindée',
+          color: _scriptEditorSplitPreview ? theme.colorScheme.primary : null,
+          onPressed: () {
+            setState(() {
+              _scriptEditorSplitPreview = !_scriptEditorSplitPreview;
+            });
+          },
+          icon: const Icon(Icons.vertical_split),
+        ),
+        const SizedBox(width: 4),
+        if (includeFullscreenToggle) ...[
+          IconButton(
+            tooltip: _scriptEditorFullscreen
+                ? 'Quitter le plein écran'
+                : 'Afficher en plein écran',
+            color: _scriptEditorFullscreen ? theme.colorScheme.primary : null,
+            onPressed: () {
+              setState(() {
+                _scriptEditorFullscreen = !_scriptEditorFullscreen;
+              });
+            },
+            icon: Icon(
+              _scriptEditorFullscreen
+                  ? Icons.close_fullscreen
+                  : Icons.open_in_full,
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+        IconButton(
+          tooltip: 'Recharger tous les scripts',
+          onPressed: _scriptEditorLoading ? null : _handleReloadScripts,
+          icon: const Icon(Icons.refresh),
+        ),
+        const SizedBox(width: 4),
+        FilledButton.icon(
+          onPressed:
+              (_scriptEditorLoading || !_scriptEditorDirty) ? null : _handleSaveScript,
+          icon: const Icon(Icons.save_outlined),
+          label: Text(
+            _scriptEditorDirty ? 'Enregistrer*' : 'Enregistrer',
+          ),
+        ),
+      ];
+    }
+
+    Widget buildEditorContent({required bool fullscreen}) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (scriptFileName != null)
+            Text(
+              'Fichier actuel : $scriptFileName',
+              style: theme.textTheme.bodySmall,
+            ),
+          if (scriptFileName != null) const SizedBox(height: 8),
+          if (_customActions.isNotEmpty) _buildCustomActionsBar(context),
+          if (_customActions.isNotEmpty) const SizedBox(height: 12),
+          if (fullscreen)
+            Expanded(child: editorSurface)
+          else
+            Flexible(fit: FlexFit.tight, child: editorSurface),
+          const SizedBox(height: 8),
+          if (status != null)
+            Text(
+              status,
+              style: theme.textTheme.bodySmall,
+            ),
+        ],
+      );
+    }
+
+    final baseLayout = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
@@ -962,53 +1038,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                   style: theme.textTheme.titleMedium,
                 ),
               ),
-              IconButton(
-                tooltip: _scriptEditorSplitPreview
-                    ? 'Fermer la vue scindée'
-                    : 'Afficher la vue scindée',
-                color:
-                    _scriptEditorSplitPreview ? theme.colorScheme.primary : null,
-                onPressed: () {
-                  setState(() {
-                    _scriptEditorSplitPreview = !_scriptEditorSplitPreview;
-                  });
-                },
-                icon: const Icon(Icons.vertical_split),
-              ),
-              const SizedBox(width: 4),
-              IconButton(
-                tooltip: _scriptEditorFullscreen
-                    ? 'Quitter le plein écran'
-                    : 'Afficher en plein écran',
-                color:
-                    _scriptEditorFullscreen ? theme.colorScheme.primary : null,
-                onPressed: () {
-                  setState(() {
-                    _scriptEditorFullscreen = !_scriptEditorFullscreen;
-                  });
-                },
-                icon: Icon(
-                  _scriptEditorFullscreen
-                      ? Icons.close_fullscreen
-                      : Icons.open_in_full,
-                ),
-              ),
-              const SizedBox(width: 4),
-              IconButton(
-                tooltip: 'Recharger tous les scripts',
-                onPressed: _scriptEditorLoading ? null : _handleReloadScripts,
-                icon: const Icon(Icons.refresh),
-              ),
-              const SizedBox(width: 4),
-              FilledButton.icon(
-                onPressed: (_scriptEditorLoading || !_scriptEditorDirty)
-                    ? null
-                    : _handleSaveScript,
-                icon: const Icon(Icons.save_outlined),
-                label: Text(
-                  _scriptEditorDirty ? 'Enregistrer*' : 'Enregistrer',
-                ),
-              ),
+              ...buildActionButtons(includeFullscreenToggle: true),
             ],
           ),
         ),
@@ -1031,34 +1061,65 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (scriptFileName != null)
-                        Text(
-                          'Fichier actuel : $scriptFileName',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      if (scriptFileName != null) const SizedBox(height: 8),
-                      if (_customActions.isNotEmpty) _buildCustomActionsBar(context),
-                      if (_customActions.isNotEmpty) const SizedBox(height: 12),
-                      if (_scriptEditorFullscreen)
-                        Expanded(child: editorSurface)
-                      else
-                        Flexible(fit: FlexFit.tight, child: editorSurface),
-                      const SizedBox(height: 8),
-                      if (status != null)
-                        Text(
-                          status,
-                          style: theme.textTheme.bodySmall,
-                        ),
-                    ],
-                  ),
+                  child: buildEditorContent(fullscreen: _scriptEditorFullscreen),
                 ),
               ),
             ],
           ),
         ),
+      ],
+    );
+
+    return Stack(
+      children: [
+        Offstage(
+          offstage: _scriptEditorFullscreen,
+          child: baseLayout,
+        ),
+        if (_scriptEditorFullscreen)
+          Positioned.fill(
+            child: Material(
+              color: theme.colorScheme.surface,
+              child: SafeArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Espace de développement',
+                              style: theme.textTheme.titleMedium,
+                            ),
+                          ),
+                          FilledButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _scriptEditorFullscreen = false;
+                              });
+                            },
+                            icon: const Icon(Icons.fullscreen_exit),
+                            label: const Text('Quitter le plein écran'),
+                          ),
+                          const SizedBox(width: 12),
+                          ...buildActionButtons(includeFullscreenToggle: false),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                        child: buildEditorContent(fullscreen: true),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
