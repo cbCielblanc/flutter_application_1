@@ -554,7 +554,8 @@ class ScriptRuntime {
     return ScriptDescriptor(scope: ScriptScope.page, key: _pageKeyFor(page));
   }
 
-  String _cacheKey(ScriptDescriptor descriptor) => ':';
+  String _cacheKey(ScriptDescriptor descriptor) =>
+      '${descriptor.scope.name}:${descriptor.key}';
 }
 
 class _ExecutionScope {
