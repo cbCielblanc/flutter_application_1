@@ -1142,6 +1142,14 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                             'Créez un module pour factoriser vos snippets.',
                           style: theme.textTheme.bodySmall,
                         ),
+                      );
+                    }),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      child: OutlinedButton.icon(
+                        onPressed: () => _promptNewSharedModule(context),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Nouveau module partagé'),
                       ),
                     ...sharedScripts.map((script) {
                       final descriptor = script.descriptor;
@@ -1302,6 +1310,80 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       ],
     );
   }
+
+class _ScriptGroupHeader extends StatelessWidget {
+  const _ScriptGroupHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+      child: Text(
+        title,
+        style: theme.textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w600,
+          color: theme.colorScheme.primary,
+        ),
+      ),
+    );
+  }
+}
+
+class _ScriptLibraryTile extends StatelessWidget {
+  const _ScriptLibraryTile({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+    required this.selected,
+    required this.hasContent,
+  });
+
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool selected;
+  final bool hasContent;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final foreground =
+        selected ? colorScheme.primary : theme.textTheme.bodyMedium?.color;
+    final background =
+        selected ? colorScheme.primary.withOpacity(0.08) : Colors.transparent;
+
+    return ListTile(
+      dense: true,
+      onTap: onTap,
+      selected: selected,
+      selectedTileColor: background,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      leading: Icon(icon, color: foreground, size: 20),
+      title: Text(
+        label,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: foreground,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: theme.textTheme.bodySmall,
+      ),
+      trailing: Icon(
+        hasContent ? Icons.check_circle : Icons.radio_button_unchecked,
+        size: 16,
+        color: hasContent ? colorScheme.primary : theme.disabledColor,
+      ),
+    );
+  }
+}
 
   Widget _buildDocBullet(
     BuildContext context,
