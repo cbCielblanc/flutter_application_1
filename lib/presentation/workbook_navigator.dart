@@ -29,6 +29,7 @@ import 'widgets/menu_page_view.dart';
 import 'widgets/notes_page_view.dart';
 import 'widgets/sheet_grid.dart';
 import 'widgets/workbook_page_tab_bar.dart';
+import 'widgets/top_aligned_code_field.dart';
 import 'workbook_page_display.dart';
 
 class CustomAction {
@@ -1217,7 +1218,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
             Positioned.fill(
               child: IgnorePointer(
                 ignoring: !_scriptEditorMutable,
-                child: CodeField(
+                child: TopAlignedCodeField(
                   controller: _scriptEditorController,
                   expands: true,
                   textAlignVertical: TextAlignVertical.top,
@@ -1228,6 +1229,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                   lineNumberStyle: lineNumberStyle,
                   padding: const EdgeInsets.all(12),
                   background: theme.colorScheme.surface,
+                  textAlignVertical: TextAlignVertical.top,
                 ),
               ),
             ),
