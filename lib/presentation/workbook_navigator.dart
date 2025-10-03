@@ -18,6 +18,7 @@ import '../domain/menu_page.dart';
 import '../domain/notes_page.dart';
 import '../domain/sheet.dart';
 import '../domain/workbook.dart';
+import '../domain/workbook_page.dart';
 import '../state/sheet_selection_state.dart';
 import 'themes/highlight_themes.dart';
 import 'widgets/command_ribbon.dart';
@@ -734,7 +735,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     }
   }
 
-  Widget _buildAdminPanel(BuildContext context) {
+  Widget _buildAdminWorkspace(BuildContext context) {
     final theme = Theme.of(context);
     final scope = _scriptEditorScope;
     final workbook = _manager.workbook;
@@ -748,186 +749,398 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       styles: isDark ? monokaiSublimeTheme : githubTheme,
     );
     final lineNumberStyle = LineNumberStyle(
-      width: 48,
+      width: 56,
       textStyle: theme.textTheme.bodySmall,
     );
+    final descriptor = _currentScriptDescriptor;
+    final status = _scriptEditorStatus;
+    final scriptFileName = descriptor?.fileName;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+    return DefaultTabController(
+      length: 2,
       child: Card(
-        elevation: 2,
+        elevation: 4,
         clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Administration des scripts',
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Recharger tous les scripts',
-                    onPressed: _scriptEditorLoading ? null : _handleReloadScripts,
-                    icon: const Icon(Icons.refresh),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Material(
+              color: theme.colorScheme.primaryContainer,
+              child: TabBar(
+                labelColor: theme.colorScheme.onPrimaryContainer,
+                indicatorColor: theme.colorScheme.onPrimaryContainer,
+                tabs: const [
+                  Tab(icon: Icon(Icons.code), text: 'Éditeur'),
+                  Tab(
+                    icon: Icon(Icons.menu_book_outlined),
+                    text: 'Documentation',
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                crossAxisAlignment: WrapCrossAlignment.center,
+            ),
+            Expanded(
+              child: TabBarView(
                 children: [
-                  DropdownButton<ScriptScope>(
-                    value: scope,
-                    onChanged: (value) {
-                      if (value != null) {
-                        _handleScriptScopeChanged(value);
-                      }
-                    },
-                    items: ScriptScope.values
-                        .map(
-                          (value) => DropdownMenuItem<ScriptScope>(
-                            value: value,
-                            child: Text(_scopeLabel(value)),
-                          ),
-                        )
-                        .toList(growable: false),
+                  _buildAdminEditorTab(
+                    context: context,
+                    codeTheme: codeTheme,
+                    lineNumberStyle: lineNumberStyle,
+                    scope: scope,
+                    pages: pages,
+                    selectedPageName: selectedPageName,
+                    scriptFileName: scriptFileName,
+                    status: status,
                   ),
-                  if (scope == ScriptScope.page)
-                    DropdownButton<String>(
-                      value: selectedPageName,
-                      hint: const Text('Page'),
-                      onChanged: (value) {
-                        if (value == null) {
-                          return;
-                        }
-                        if (value != _scriptEditorPageName) {
-                          setState(() {
-                            _scriptEditorPageName = value;
-                          });
-                          unawaited(_loadScriptEditor());
-                        }
-                      },
-                      items: pages
-                          .map(
-                            (page) => DropdownMenuItem<String>(
-                              value: page.name,
-                              child: Text(page.name),
-                            ),
-                          )
-                          .toList(growable: false),
-                    ),
-                  if (scope == ScriptScope.shared)
-                    SizedBox(
-                      width: 240,
-                      child: TextField(
-                        controller: _sharedScriptKeyController,
-                        decoration: InputDecoration(
-                          labelText: 'Module partage',
-                          helperText: 'Cle normalisee: $_scriptSharedKey',
-                        ),
-                      ),
-                    ),
-                  TextButton.icon(
-                    onPressed: _scriptEditorLoading ? null : _loadScriptEditor,
-                    icon: const Icon(Icons.download),
-                    label: const Text('Charger'),
-                  ),
-                  FilledButton.icon(
-                    onPressed: (_scriptEditorLoading || !_scriptEditorDirty)
-                        ? null
-                        : _handleSaveScript,
-                    icon: const Icon(Icons.save),
-                    label: Text(
-                      _scriptEditorDirty ? 'Enregistrer*' : 'Enregistrer',
-                    ),
-                  ),
+                  _buildAdminDocumentationTab(context),
                 ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                'Contenu du script',
-                style: theme.textTheme.titleSmall,
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 240,
-                child: CodeTheme(
-                  data: codeTheme,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: theme.colorScheme.outline),
-                      borderRadius: const BorderRadius.all(Radius.circular(4)),
-                    ),
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: CodeField(
-                            controller: _scriptEditorController,
-                            expands: true,
-                            textStyle: const TextStyle(fontFamily: 'monospace'),
-                            lineNumberStyle: lineNumberStyle,
-                            padding: const EdgeInsets.all(12),
-                            background: theme.colorScheme.surface,
-                          ),
-                        ),
-                        if (_scriptEditorLoading)
-                          const Positioned(
-                            top: 12,
-                            right: 12,
-                            child: SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              if (_scriptEditorStatus != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _scriptEditorStatus!,
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildCustomActionsBar(BuildContext context) {
+  Widget _buildAdminEditorTab({
+    required BuildContext context,
+    required CodeThemeData codeTheme,
+    required LineNumberStyle lineNumberStyle,
+    required ScriptScope scope,
+    required List<WorkbookPage> pages,
+    required String? selectedPageName,
+    required String? scriptFileName,
+    required String? status,
+  }) {
+    final theme = Theme.of(context);
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Espace de développement',
+                  style: theme.textTheme.titleMedium,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Recharger tous les scripts',
+                onPressed: _scriptEditorLoading ? null : _handleReloadScripts,
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              DropdownButton<ScriptScope>(
+                value: scope,
+                onChanged: (value) {
+                  if (value != null) {
+                    _handleScriptScopeChanged(value);
+                  }
+                },
+                items: ScriptScope.values
+                    .map(
+                      (value) => DropdownMenuItem<ScriptScope>(
+                        value: value,
+                        child: Text(_scopeLabel(value)),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+              if (scope == ScriptScope.page)
+                DropdownButton<String>(
+                  value: selectedPageName,
+                  hint: const Text('Page'),
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    if (value != _scriptEditorPageName) {
+                      setState(() {
+                        _scriptEditorPageName = value;
+                      });
+                      unawaited(_loadScriptEditor());
+                    }
+                  },
+                  items: pages
+                      .map(
+                        (page) => DropdownMenuItem<String>(
+                          value: page.name,
+                          child: Text(page.name),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+              if (scope == ScriptScope.shared)
+                SizedBox(
+                  width: 220,
+                  child: TextField(
+                    controller: _sharedScriptKeyController,
+                    decoration: InputDecoration(
+                      labelText: 'Module partagé',
+                      helperText: 'Clé normalisée: $_scriptSharedKey',
+                    ),
+                  ),
+                ),
+              OutlinedButton.icon(
+                onPressed: _scriptEditorLoading ? null : _loadScriptEditor,
+                icon: const Icon(Icons.download),
+                label: const Text('Charger'),
+              ),
+              FilledButton.icon(
+                onPressed: (_scriptEditorLoading || !_scriptEditorDirty)
+                    ? null
+                    : _handleSaveScript,
+                icon: const Icon(Icons.save),
+                label: Text(
+                  _scriptEditorDirty ? 'Enregistrer*' : 'Enregistrer',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (scriptFileName != null)
+            Text(
+              'Fichier actuel : $scriptFileName',
+              style: theme.textTheme.bodySmall,
+            ),
+          if (scriptFileName != null) const SizedBox(height: 12),
+          if (_customActions.isNotEmpty) _buildCustomActionsBar(context),
+          if (_customActions.isNotEmpty) const SizedBox(height: 12),
+          Expanded(
+            child: CodeTheme(
+              data: codeTheme,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: theme.colorScheme.outline.withOpacity(0.6),
+                  ),
+                  borderRadius: const BorderRadius.all(Radius.circular(8)),
+                ),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: CodeField(
+                        controller: _scriptEditorController,
+                        expands: true,
+                        textStyle: const TextStyle(fontFamily: 'monospace'),
+                        lineNumberStyle: lineNumberStyle,
+                        padding: const EdgeInsets.all(12),
+                        background: theme.colorScheme.surface,
+                      ),
+                    ),
+                    if (_scriptEditorLoading)
+                      const Positioned(
+                        top: 16,
+                        right: 16,
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (status != null)
+            Text(
+              status,
+              style: theme.textTheme.bodySmall,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminDocumentationTab(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final codeBackground = isDark
+        ? theme.colorScheme.surfaceVariant.withOpacity(0.4)
+        : theme.colorScheme.surfaceVariant;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text(
+          'Guide de référence rapide',
+          style: theme.textTheme.titleMedium,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Les scripts Optima sont écrits en YAML. Chaque script définit un nom, une portée (global, page ou module partagé) et une liste de gestionnaires d’évènements.',
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 16),
+        Text('Événements disponibles', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        _buildDocBullet(
+          context,
+          'workbook.open',
+          'Déclenché lors de l’ouverture du classeur.',
+        ),
+        _buildDocBullet(
+          context,
+          'workbook.close',
+          'Déclenché à la fermeture du classeur.',
+        ),
+        _buildDocBullet(
+          context,
+          'page.enter',
+          'Appelé quand un utilisateur arrive sur une page.',
+        ),
+        _buildDocBullet(
+          context,
+          'page.leave',
+          'Appelé avant de quitter la page active.',
+        ),
+        _buildDocBullet(
+          context,
+          'cell.changed',
+          'Notifié lorsqu’une cellule change de valeur.',
+        ),
+        _buildDocBullet(
+          context,
+          'selection.changed',
+          'Notifié lorsqu’une sélection de cellules est modifiée.',
+        ),
+        _buildDocBullet(
+          context,
+          'notes.changed',
+          'Déclenché lorsque le contenu d’une page de notes est édité.',
+        ),
+        const SizedBox(height: 16),
+        Text('Actions supportées', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        _buildDocBullet(
+          context,
+          'log',
+          'Affiche un message dans la console des scripts. Utilisez le paramètre "message" pour personnaliser le texte.',
+        ),
+        _buildDocBullet(
+          context,
+          'set_cell',
+          'Écrit une valeur dans une cellule (paramètres : cell, sheet?, value/raw). Les expressions sont évaluées après substitution des variables de contexte.',
+        ),
+        _buildDocBullet(
+          context,
+          'clear_cell',
+          'Efface le contenu d’une cellule ciblée.',
+        ),
+        _buildDocBullet(
+          context,
+          'run_snippet',
+          'Exécute un snippet défini dans un module partagé (paramètres : module, name, args?).',
+        ),
+        const SizedBox(height: 16),
+        Text('Contexte disponible', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        Text(
+          'Les templates peuvent accéder aux informations du classeur : {{workbook.pageCount}}, {{page.name}}, {{sheetKey}}… Utilisez ces variables pour créer des scripts dynamiques.',
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 16),
+        Text('Exemple complet', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: codeBackground,
+            borderRadius: const BorderRadius.all(Radius.circular(8)),
+            border: Border.all(
+              color: theme.colorScheme.outline.withOpacity(0.4),
+            ),
+          ),
+          child: const Padding(
+            padding: EdgeInsets.all(12),
+            child: SelectableText(
+              'name: Exemple page\nscope: page\nhandlers:\n  - event: page.enter\n    actions:\n      - log:\n          message: "Bienvenue {{page.name}}"\n      - set_cell:\n          cell: A1\n          value: "=SUM(B1:B5)"\n',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                height: 1.4,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Astuce : utilisez la bibliothèque de pré-code pour insérer un squelette d’actions avant de personnaliser votre script.',
+          style: theme.textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDocBullet(
+    BuildContext context,
+    String title,
+    String description,
+  ) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('• '),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: theme.textTheme.bodyMedium,
+                children: [
+                  TextSpan(
+                    text: '$title : ',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  TextSpan(text: description),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCustomActionsBar(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Pré-code',
+          style: theme.textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: _customActions
               .map(
-                (action) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Tooltip(
-                    message: action.template,
-                    child: ActionChip(
-                      label: Text(action.label),
-                      onPressed: () => _handleInsertCustomAction(action),
-                    ),
+                (action) => Tooltip(
+                  message: action.template,
+                  preferBelow: false,
+                  child: ActionChip(
+                    label: Text(action.label),
+                    onPressed: () => _handleInsertCustomAction(action),
                   ),
                 ),
               )
               .toList(growable: false),
         ),
-      ),
+      ],
     );
   }
 
@@ -986,10 +1199,8 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
           );
         }
 
-        return Column(
+        final workbookColumn = Column(
           children: [
-            if (_isAdmin) _buildAdminPanel(context),
-            if (_customActions.isNotEmpty) _buildCustomActionsBar(context),
             CommandRibbon(
               commandManager: _manager,
               onBeforeCommand: _commitActiveSelectionEdits,
@@ -1119,8 +1330,34 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                         );
                       },
                     ),
-            ),
+                  ),
           ],
+        );
+
+        if (_isAdmin) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
+                  child: workbookColumn,
+                ),
+              ),
+              SizedBox(
+                width: 420,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
+                  child: _buildAdminWorkspace(context),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: workbookColumn,
         );
       },
     );
