@@ -5,3 +5,8 @@ handlers:
     actions:
       - log:
           message: "Bienvenue sur {{page.name}}, test"
+      - set_cell:
+          cell: A1
+          value: "=B1"
+
+          
