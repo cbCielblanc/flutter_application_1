@@ -83,6 +83,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   bool _suppressScriptEditorChanges = false;
   bool _scriptEditorFullscreen = false;
   bool _scriptEditorSplitPreview = false;
+  bool _scriptEditorMutable = true;
   late int _currentPageIndex;
   final List<StoredScript> _scriptLibrary = <StoredScript>[];
   bool _scriptLibraryLoading = false;
@@ -532,6 +533,9 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     if (_suppressScriptEditorChanges) {
       return;
     }
+    if (!_scriptEditorMutable) {
+      return;
+    }
     if (!_scriptEditorDirty || _scriptEditorSplitPreview) {
       setState(() {
         _scriptEditorDirty = true;
@@ -745,6 +749,13 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   }
 
   Future<void> _handleSaveScript() async {
+    if (!_scriptEditorMutable) {
+      setState(() {
+        _scriptEditorStatus =
+            'Edition indisponible sur cette plateforme (lecture seule).';
+      });
+      return;
+    }
     final descriptor = _resolveScriptDescriptor();
     if (descriptor == null) {
       setState(() {
@@ -841,6 +852,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
         _scriptEditorController.clear();
         _suppressScriptEditorChanges = false;
         _scriptEditorDirty = false;
+        _scriptEditorMutable = false;
         _scriptEditorStatus =
             'Selectionnez un script a charger pour commencer.';
       });
@@ -851,19 +863,18 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       _scriptEditorStatus = 'Chargement de ${descriptor.fileName}...';
     });
     try {
-      final existing = await _runtime.storage.loadScript(descriptor);
-      late final StoredScript stored;
+      final storage = _runtime.storage;
+      final existing = await storage.loadScript(descriptor);
+      StoredScript? stored = existing;
       var createdFromTemplate = false;
-      if (existing == null) {
+      if (stored == null && storage.supportsFileSystem) {
         final template = _defaultScriptTemplate(descriptor);
-        stored = await _runtime.storage.saveScript(descriptor, template);
+        stored = await storage.saveScript(descriptor, template);
         createdFromTemplate = true;
         debugPrint(
           'Script manquant pour ${descriptor.fileName}. Modèle sauvegardé dans ${stored.origin}.',
         );
         await _refreshScriptLibrary(silent: true);
-      } else {
-        stored = existing;
       }
       if (!mounted) {
         return;
@@ -871,12 +882,23 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       setState(() {
         _currentScriptDescriptor = descriptor;
         _suppressScriptEditorChanges = true;
-        _scriptEditorController.text = stored.source;
+        _scriptEditorController.text = stored?.source ?? '';
         _suppressScriptEditorChanges = false;
         _scriptEditorDirty = false;
-        _scriptEditorStatus = createdFromTemplate
-            ? 'Script absent. Modèle par défaut créé et sauvegardé (${stored.origin}).'
-            : 'Script chargé depuis ${stored.origin}.';
+        _scriptEditorMutable = stored?.isMutable ?? false;
+        if (stored == null) {
+          _scriptEditorStatus = storage.supportsFileSystem
+              ? 'Script introuvable pour ${descriptor.fileName}.'
+              :
+                  'Script introuvable et édition indisponible sur cette plateforme (lecture seule).';
+        } else if (!_scriptEditorMutable) {
+          _scriptEditorStatus =
+              'Script chargé depuis ${stored.origin}. Edition indisponible sur cette plateforme (lecture seule).';
+        } else {
+          _scriptEditorStatus = createdFromTemplate
+              ? 'Script absent. Modèle par défaut créé et sauvegardé (${stored.origin}).'
+              : 'Script chargé depuis ${stored.origin}.';
+        }
       });
     } catch (error) {
       if (!mounted) {
@@ -1037,8 +1059,9 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
         ),
         const SizedBox(width: 4),
         FilledButton.icon(
-          onPressed:
-              (_scriptEditorLoading || !_scriptEditorDirty) ? null : _handleSaveScript,
+          onPressed: (_scriptEditorLoading || !_scriptEditorDirty || !_scriptEditorMutable)
+              ? null
+              : _handleSaveScript,
           icon: const Icon(Icons.save_outlined),
           label: Text(
             _scriptEditorDirty ? 'Enregistrer*' : 'Enregistrer',
@@ -1192,16 +1215,19 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
         child: Stack(
           children: [
             Positioned.fill(
-              child: CodeField(
-                controller: _scriptEditorController,
-                expands: true,
-                textStyle: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 13,
+              child: IgnorePointer(
+                ignoring: !_scriptEditorMutable,
+                child: CodeField(
+                  controller: _scriptEditorController,
+                  expands: true,
+                  textStyle: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                  ),
+                  lineNumberStyle: lineNumberStyle,
+                  padding: const EdgeInsets.all(12),
+                  background: theme.colorScheme.surface,
                 ),
-                lineNumberStyle: lineNumberStyle,
-                padding: const EdgeInsets.all(12),
-                background: theme.colorScheme.surface,
               ),
             ),
             if (_scriptEditorLoading)
