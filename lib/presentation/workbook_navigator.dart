@@ -1220,6 +1220,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                 child: CodeField(
                   controller: _scriptEditorController,
                   expands: true,
+                  textAlignVertical: TextAlignVertical.top,
                   textStyle: const TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 13,
