@@ -46,11 +46,19 @@ class ScriptStorage {
 
   final AssetBundle _bundle;
   final ScriptParser _parser;
+  final bool _supportsFileSystem = !kIsWeb;
 
   Directory? _writeDirectory;
   List<String>? _assetScriptPaths;
 
-  Future<Directory> _ensureWriteDirectory() async {
+  bool get supportsFileSystem => _supportsFileSystem;
+
+  bool get isReadOnly => !_supportsFileSystem;
+
+  Future<Directory?> _ensureWriteDirectory() async {
+    if (!_supportsFileSystem) {
+      return null;
+    }
     if (_writeDirectory != null) {
       return _writeDirectory!;
     }
@@ -76,21 +84,23 @@ class ScriptStorage {
   }
 
   Future<StoredScript?> loadScript(ScriptDescriptor descriptor) async {
-    final file = await _resolveFile(descriptor);
-    if (await file.exists()) {
-      final source = await file.readAsString();
-      final document = _parser.parse(
-        id: descriptor.key,
-        source: source,
-        forcedScope: descriptor.scope,
-      );
-      return StoredScript(
-        descriptor: descriptor,
-        source: source,
-        document: document,
-        origin: file.path,
-        isMutable: true,
-      );
+    if (_supportsFileSystem) {
+      final file = await _resolveFile(descriptor);
+      if (file != null && await file.exists()) {
+        final source = await file.readAsString();
+        final document = _parser.parse(
+          id: descriptor.key,
+          source: source,
+          forcedScope: descriptor.scope,
+        );
+        return StoredScript(
+          descriptor: descriptor,
+          source: source,
+          document: document,
+          origin: file.path,
+          isMutable: true,
+        );
+      }
     }
     final assetPath = _assetPath(descriptor);
     try {
@@ -121,7 +131,25 @@ class ScriptStorage {
       source: source,
       forcedScope: descriptor.scope,
     );
+    if (!_supportsFileSystem) {
+      return StoredScript(
+        descriptor: descriptor,
+        source: source,
+        document: document,
+        origin: 'read-only (filesystem unsupported)',
+        isMutable: false,
+      );
+    }
     final file = await _resolveFile(descriptor);
+    if (file == null) {
+      return StoredScript(
+        descriptor: descriptor,
+        source: source,
+        document: document,
+        origin: 'unavailable',
+        isMutable: false,
+      );
+    }
     await file.parent.create(recursive: true);
     await file.writeAsString(source);
     return StoredScript(
@@ -151,7 +179,7 @@ class ScriptStorage {
     }
     // Include additional local files that may not exist in assets yet.
     final writeDir = await _ensureWriteDirectory();
-    if (await writeDir.exists()) {
+    if (writeDir != null && await writeDir.exists()) {
       final basePath = writeDir.path;
       await for (final entity in writeDir.list(recursive: true)) {
         if (entity is! File) {
@@ -196,8 +224,11 @@ class ScriptStorage {
     return results;
   }
 
-  Future<File> _resolveFile(ScriptDescriptor descriptor) async {
+  Future<File?> _resolveFile(ScriptDescriptor descriptor) async {
     final writeDir = await _ensureWriteDirectory();
+    if (writeDir == null) {
+      return null;
+    }
     return File('${writeDir.path}/${descriptor.fileName}');
   }
 
