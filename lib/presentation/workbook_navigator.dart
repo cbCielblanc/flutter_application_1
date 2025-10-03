@@ -3,8 +3,6 @@ import 'package:code_text_field/code_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:highlight/languages/yaml.dart';
-import 'package:highlight/themes/github.dart';
-import 'package:highlight/themes/monokai-sublime.dart';
 
 import '../application/scripts/models.dart';
 import '../application/scripts/runtime.dart';
@@ -21,6 +19,7 @@ import '../domain/notes_page.dart';
 import '../domain/sheet.dart';
 import '../domain/workbook.dart';
 import '../state/sheet_selection_state.dart';
+import 'themes/highlight_themes.dart';
 import 'widgets/command_ribbon.dart';
 import 'widgets/formula_bar.dart';
 import 'widgets/menu_page_view.dart';
