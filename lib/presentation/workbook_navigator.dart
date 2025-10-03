@@ -1,6 +1,10 @@
 import 'dart:async';
+import 'package:code_text_field/code_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:highlight/languages/yaml.dart';
+import 'package:highlight/themes/github.dart';
+import 'package:highlight/themes/monokai-sublime.dart';
 
 import '../application/scripts/models.dart';
 import '../application/scripts/runtime.dart';
@@ -64,7 +68,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   final List<CustomAction> _customActions = <CustomAction>[];
   late final TextEditingController _customActionLabelController;
   late final TextEditingController _customActionTemplateController;
-  final TextEditingController _scriptEditorController = TextEditingController();
+  late final CodeController _scriptEditorController;
   final TextEditingController _sharedScriptKeyController =
       TextEditingController(text: 'shared_module');
   ScriptScope _scriptEditorScope = ScriptScope.page;
@@ -86,6 +90,10 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     super.initState();
     _customActionLabelController = TextEditingController();
     _customActionTemplateController = TextEditingController();
+    _scriptEditorController = CodeController(
+      language: yaml,
+      params: const EditorParams(tabSpaces: 2),
+    );
     _scriptEditorController.addListener(_handleScriptEditorChanged);
     _sharedScriptKeyController.addListener(_handleSharedScriptKeyChanged);
     if (_isAdmin) {
@@ -736,6 +744,14 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     final selectedPageName = availableNames.contains(_scriptEditorPageName)
         ? _scriptEditorPageName
         : (availableNames.isNotEmpty ? availableNames.first : null);
+    final isDark = theme.brightness == Brightness.dark;
+    final codeTheme = CodeThemeData(
+      styles: isDark ? monokaiSublimeTheme : githubTheme,
+    );
+    final lineNumberStyle = LineNumberStyle(
+      width: 48,
+      textStyle: theme.textTheme.bodySmall,
+    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -836,30 +852,45 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                 ],
               ),
               const SizedBox(height: 12),
+              Text(
+                'Contenu du script',
+                style: theme.textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8),
               SizedBox(
                 height: 240,
-                child: TextField(
-                  controller: _scriptEditorController,
-                  expands: true,
-                  maxLines: null,
-                  minLines: null,
-                  textAlignVertical: TextAlignVertical.top,
-                  decoration: InputDecoration(
-                    labelText: 'Contenu du script',
-                    alignLabelWithHint: true,
-                    border: const OutlineInputBorder(),
-                    suffixIcon: _scriptEditorLoading
-                        ? const Padding(
-                            padding: EdgeInsets.all(12),
+                child: CodeTheme(
+                  data: codeTheme,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: theme.colorScheme.outline),
+                      borderRadius: const BorderRadius.all(Radius.circular(4)),
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: CodeField(
+                            controller: _scriptEditorController,
+                            expands: true,
+                            textStyle: const TextStyle(fontFamily: 'monospace'),
+                            lineNumberStyle: lineNumberStyle,
+                            padding: const EdgeInsets.all(12),
+                            background: theme.colorScheme.surface,
+                          ),
+                        ),
+                        if (_scriptEditorLoading)
+                          const Positioned(
+                            top: 12,
+                            right: 12,
                             child: SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             ),
-                          )
-                        : null,
+                          ),
+                      ],
+                    ),
                   ),
-                  style: const TextStyle(fontFamily: 'monospace'),
                 ),
               ),
               if (_scriptEditorStatus != null) ...[
