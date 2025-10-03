@@ -58,8 +58,7 @@ class WorkbookNavigator extends StatefulWidget {
   State<WorkbookNavigator> createState() => _WorkbookNavigatorState();
 }
 
-class _WorkbookNavigatorState extends State<WorkbookNavigator>
-    with TickerProviderStateMixin {
+class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   late PageController _pageController;
   final Map<String, SheetSelectionState> _selectionStates =
       <String, SheetSelectionState>{};
@@ -1154,7 +1153,6 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
           alignment: Alignment.topCenter,
-          vsync: this,
           child: SizedBox(
             width: constraints.maxWidth,
             height: constraints.maxHeight,
