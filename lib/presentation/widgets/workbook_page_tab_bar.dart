@@ -33,31 +33,29 @@ class WorkbookPageTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final dividerColor = theme.colorScheme.outline.withOpacity(0.2);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Material(
-        elevation: 1,
-        color: colorScheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 44),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: Row(
-              children: [
-                for (var index = 0; index < tabs.length; index++) ...[
-                  _WorkbookTabButton(
-                    tab: tabs[index],
-                    isSelected: tabs[index].pageIndex == selectedPageIndex,
-                    onSelect: () => onSelectPage(tabs[index].pageIndex),
-                  ),
-                  if (index != tabs.length - 1) const SizedBox(width: 6),
-                ],
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: dividerColor)),
+        color: theme.colorScheme.surface,
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            children: [
+              for (var index = 0; index < tabs.length; index++) ...[
+                _WorkbookTabButton(
+                  tab: tabs[index],
+                  isSelected: tabs[index].pageIndex == selectedPageIndex,
+                  onSelect: () => onSelectPage(tabs[index].pageIndex),
+                ),
+                if (index != tabs.length - 1) const SizedBox(width: 4),
               ],
-            ),
+            ],
           ),
         ),
       ),
@@ -83,10 +81,10 @@ class _WorkbookTabButton extends StatelessWidget {
     final foreground =
         isSelected ? colorScheme.primary : theme.textTheme.bodyMedium?.color;
     final background =
-        isSelected ? colorScheme.primary.withOpacity(0.12) : Colors.transparent;
+        isSelected ? colorScheme.primary.withOpacity(0.08) : Colors.transparent;
     final borderColor = isSelected
-        ? colorScheme.primary.withOpacity(0.5)
-        : colorScheme.outlineVariant.withOpacity(0.4);
+        ? colorScheme.primary.withOpacity(0.45)
+        : colorScheme.outline.withOpacity(0.2);
 
     return Tooltip(
       message: tab.title,
