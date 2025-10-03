@@ -118,20 +118,9 @@ class WorkbookHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final gradientColors = <Color>[
-      colorScheme.surface,
-      Color.lerp(colorScheme.surface, colorScheme.primaryContainer, 0.35) ??
-          colorScheme.primaryContainer,
-      Color.lerp(colorScheme.surface, colorScheme.secondaryContainer, 0.25) ??
-          colorScheme.secondaryContainer,
-    ];
-
     final isAdmin = mode == AppMode.admin;
 
     return Scaffold(
-      extendBody: true,
-      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Classeur Optima'),
         actions: [
@@ -141,41 +130,44 @@ class WorkbookHome extends StatelessWidget {
           const SizedBox(width: 16),
         ],
       ),
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: gradientColors,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: SafeArea(
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1280),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                child: Material(
-                  color: Colors.white.withOpacity(0.92),
-                  elevation: 6,
-                  shadowColor: Colors.black.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(20),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: WorkbookNavigator(
-                      commandManager: commandManager,
-                      scriptRuntime: scriptRuntime,
-                      isAdmin: isAdmin,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final horizontalPadding = constraints.maxWidth > 1200 ? 32.0 : 16.0;
+            final verticalPadding = constraints.maxHeight > 720 ? 16.0 : 8.0;
+            return Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1400),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: horizontalPadding,
+                    vertical: verticalPadding,
+                  ),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .outline
+                            .withOpacity(0.18),
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: WorkbookNavigator(
+                        commandManager: commandManager,
+                        scriptRuntime: scriptRuntime,
+                        isAdmin: isAdmin,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
@@ -221,28 +213,28 @@ class _ProfileBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final background = isAdmin
-        ? colorScheme.primary.withOpacity(0.16)
-        : colorScheme.primary.withOpacity(0.12);
-    final icon = isAdmin ? Icons.admin_panel_settings : Icons.auto_graph;
-    final label = isAdmin ? 'Mode admin' : 'Mode focus';
+    final background = colorScheme.surface;
+    final borderColor = colorScheme.outline.withOpacity(0.2);
+    final icon = isAdmin ? Icons.admin_panel_settings : Icons.person_outline;
+    final label = isAdmin ? 'Administrateur' : 'Utilisateur';
 
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
         color: background,
+        border: Border.all(color: borderColor),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             CircleAvatar(
               radius: 14,
-              backgroundColor: colorScheme.primary,
-              child: Icon(icon, size: 16, color: Colors.white),
+              backgroundColor: colorScheme.primary.withOpacity(0.1),
+              child: Icon(icon, size: 16, color: colorScheme.primary),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Text(label, style: Theme.of(context).textTheme.labelLarge),
           ],
         ),

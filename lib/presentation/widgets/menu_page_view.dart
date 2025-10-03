@@ -42,7 +42,7 @@ class MenuPageView extends StatelessWidget {
     ];
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -56,7 +56,7 @@ class MenuPageView extends StatelessWidget {
             style: theme.textTheme.bodyMedium,
           ),
           if (enableEditing) ...[
-            const SizedBox(height: 18),
+            const SizedBox(height: 16),
             Wrap(
               spacing: 12,
               runSpacing: 8,
@@ -74,7 +74,7 @@ class MenuPageView extends StatelessWidget {
               ],
             ),
           ],
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           Expanded(
             child: destinations.isEmpty
                 ? Center(
@@ -83,20 +83,19 @@ class MenuPageView extends StatelessWidget {
                       style: theme.textTheme.bodyMedium,
                     ),
                   )
-                : SingleChildScrollView(
-                    child: Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [
-                        for (final destination in destinations)
-                          _MenuDestinationCard(
-                            destination: destination,
-                            onOpenPage: onOpenPage,
-                            onRemovePage: onRemovePage,
-                            enableEditing: enableEditing,
-                          ),
-                      ],
-                    ),
+                : ListView.separated(
+                    padding: EdgeInsets.zero,
+                    itemCount: destinations.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final destination = destinations[index];
+                      return _MenuDestinationCard(
+                        destination: destination,
+                        onOpenPage: onOpenPage,
+                        onRemovePage: onRemovePage,
+                        enableEditing: enableEditing,
+                      );
+                    },
                   ),
           ),
         ],
@@ -138,112 +137,59 @@ class _MenuDestinationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    return SizedBox(
-      width: 280,
-      height: 160,
+    return Card(
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         onTap: () => onOpenPage(destination.pageIndex),
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                colorScheme.primaryContainer.withOpacity(0.65),
-                colorScheme.surface,
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: colorScheme.primary.withOpacity(0.1),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: colorScheme.primary.withOpacity(0.1),
+                child: Icon(destination.icon, color: colorScheme.primary),
               ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary.withOpacity(0.14),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        destination.icon,
-                        color: colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  destination.title,
-                                  style: theme.textTheme.titleMedium,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if (enableEditing && destination.canRemove)
-                                IconButton(
-                                  tooltip: 'Supprimer',
-                                  onPressed: () => onRemovePage(destination.pageIndex),
-                                  icon: const Icon(Icons.delete_outline),
-                                  splashRadius: 18,
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            destination.subtitle,
-                            style: theme.textTheme.bodySmall,
-                            maxLines: 2,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            destination.title,
+                            style: theme.textTheme.titleMedium,
                             overflow: TextOverflow.ellipsis,
                           ),
-                        ],
-                      ),
+                        ),
+                        if (enableEditing && destination.canRemove)
+                          IconButton(
+                            tooltip: 'Supprimer',
+                            onPressed: () => onRemovePage(destination.pageIndex),
+                            icon: const Icon(Icons.delete_outline),
+                            splashRadius: 18,
+                          ),
+                      ],
                     ),
-                  ],
-                ),
-                const Spacer(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
+                    const SizedBox(height: 4),
                     Text(
-                      'Ouvrir',
-                      style: theme.textTheme.labelLarge,
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.arrow_forward,
-                        size: 16,
-                      ),
+                      destination.subtitle,
+                      style: theme.textTheme.bodySmall,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 16),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: colorScheme.outline,
+              ),
+            ],
           ),
         ),
       ),
