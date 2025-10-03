@@ -58,7 +58,8 @@ class WorkbookNavigator extends StatefulWidget {
   State<WorkbookNavigator> createState() => _WorkbookNavigatorState();
 }
 
-class _WorkbookNavigatorState extends State<WorkbookNavigator> {
+class _WorkbookNavigatorState extends State<WorkbookNavigator>
+    with TickerProviderStateMixin {
   late PageController _pageController;
   final Map<String, SheetSelectionState> _selectionStates =
       <String, SheetSelectionState>{};
@@ -80,6 +81,8 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   String? _scriptEditorStatus;
   ScriptDescriptor? _currentScriptDescriptor;
   bool _suppressScriptEditorChanges = false;
+  bool _scriptEditorFullscreen = false;
+  bool _scriptEditorSplitPreview = false;
   late int _currentPageIndex;
   final List<StoredScript> _scriptLibrary = <StoredScript>[];
   bool _scriptLibraryLoading = false;
@@ -494,7 +497,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     if (_suppressScriptEditorChanges) {
       return;
     }
-    if (!_scriptEditorDirty) {
+    if (!_scriptEditorDirty || _scriptEditorSplitPreview) {
       setState(() {
         _scriptEditorDirty = true;
       });
@@ -941,6 +944,11 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     required String? status,
   }) {
     final theme = Theme.of(context);
+    final editorSurface = _buildScriptEditorSurface(
+      context: context,
+      codeTheme: codeTheme,
+      lineNumberStyle: lineNumberStyle,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -955,6 +963,38 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                   style: theme.textTheme.titleMedium,
                 ),
               ),
+              IconButton(
+                tooltip: _scriptEditorSplitPreview
+                    ? 'Fermer la vue scindée'
+                    : 'Afficher la vue scindée',
+                color:
+                    _scriptEditorSplitPreview ? theme.colorScheme.primary : null,
+                onPressed: () {
+                  setState(() {
+                    _scriptEditorSplitPreview = !_scriptEditorSplitPreview;
+                  });
+                },
+                icon: const Icon(Icons.vertical_split),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                tooltip: _scriptEditorFullscreen
+                    ? 'Quitter le plein écran'
+                    : 'Afficher en plein écran',
+                color:
+                    _scriptEditorFullscreen ? theme.colorScheme.primary : null,
+                onPressed: () {
+                  setState(() {
+                    _scriptEditorFullscreen = !_scriptEditorFullscreen;
+                  });
+                },
+                icon: Icon(
+                  _scriptEditorFullscreen
+                      ? Icons.close_fullscreen
+                      : Icons.open_in_full,
+                ),
+              ),
+              const SizedBox(width: 4),
               IconButton(
                 tooltip: 'Recharger tous les scripts',
                 onPressed: _scriptEditorLoading ? null : _handleReloadScripts,
@@ -978,15 +1018,17 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(
-                width: 240,
-                child: _buildScriptLibraryPanel(
-                  context: context,
-                  pages: pages,
-                  activeDescriptor: activeDescriptor,
+              if (!_scriptEditorFullscreen) ...[
+                SizedBox(
+                  width: 240,
+                  child: _buildScriptLibraryPanel(
+                    context: context,
+                    pages: pages,
+                    activeDescriptor: activeDescriptor,
+                  ),
                 ),
-              ),
-              const VerticalDivider(width: 1),
+                const VerticalDivider(width: 1),
+              ],
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
@@ -1001,46 +1043,10 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                       if (scriptFileName != null) const SizedBox(height: 8),
                       if (_customActions.isNotEmpty) _buildCustomActionsBar(context),
                       if (_customActions.isNotEmpty) const SizedBox(height: 12),
-                      Expanded(
-                        child: CodeTheme(
-                          data: codeTheme,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: theme.colorScheme.outline.withOpacity(0.25),
-                              ),
-                              borderRadius: const BorderRadius.all(Radius.circular(8)),
-                            ),
-                            child: Stack(
-                              children: [
-                                Positioned.fill(
-                                  child: CodeField(
-                                    controller: _scriptEditorController,
-                                    expands: true,
-                                    textStyle: const TextStyle(
-                                      fontFamily: 'monospace',
-                                      fontSize: 13,
-                                    ),
-                                    lineNumberStyle: lineNumberStyle,
-                                    padding: const EdgeInsets.all(12),
-                                    background: theme.colorScheme.surface,
-                                  ),
-                                ),
-                                if (_scriptEditorLoading)
-                                  const Positioned(
-                                    top: 16,
-                                    right: 16,
-                                    child: SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
+                      if (_scriptEditorFullscreen)
+                        Expanded(child: editorSurface)
+                      else
+                        Flexible(fit: FlexFit.tight, child: editorSurface),
                       const SizedBox(height: 8),
                       if (status != null)
                         Text(
@@ -1055,6 +1061,107 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildScriptEditorSurface({
+    required BuildContext context,
+    required CodeThemeData codeTheme,
+    required LineNumberStyle lineNumberStyle,
+  }) {
+    final theme = Theme.of(context);
+    final borderDecoration = BoxDecoration(
+      border: Border.all(
+        color: theme.colorScheme.outline.withOpacity(0.25),
+      ),
+      borderRadius: const BorderRadius.all(Radius.circular(8)),
+    );
+
+    final editor = CodeTheme(
+      data: codeTheme,
+      child: DecoratedBox(
+        decoration: borderDecoration,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: CodeField(
+                controller: _scriptEditorController,
+                expands: true,
+                textStyle: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                ),
+                lineNumberStyle: lineNumberStyle,
+                padding: const EdgeInsets.all(12),
+                background: theme.colorScheme.surface,
+              ),
+            ),
+            if (_scriptEditorLoading)
+              const Positioned(
+                top: 16,
+                right: 16,
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    Widget buildPreview() {
+      return DecoratedBox(
+        decoration: borderDecoration,
+        child: Material(
+          type: MaterialType.transparency,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(12),
+            child: SelectableText(
+              _scriptEditorController.text.isEmpty
+                  ? 'Aucun contenu pour le moment.'
+                  : _scriptEditorController.text,
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        Widget content = editor;
+
+        if (_scriptEditorSplitPreview) {
+          content = SizedBox(
+            height: constraints.maxHeight,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: editor),
+                const VerticalDivider(width: 1),
+                Expanded(child: buildPreview()),
+              ],
+            ),
+          );
+        }
+
+        return AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          alignment: Alignment.topCenter,
+          vsync: this,
+          child: SizedBox(
+            width: constraints.maxWidth,
+            height: constraints.maxHeight,
+            child: content,
+          ),
+        );
+      },
     );
   }
 
