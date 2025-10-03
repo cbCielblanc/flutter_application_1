@@ -1,0 +1,9 @@
+name: Page Script
+scope: page
+handlers:
+  - event: page.enter
+    actions:
+      - log:
+          message: "Bienvenue sur {{page.name}}"
+      - log:
+          message: "Votre message"
