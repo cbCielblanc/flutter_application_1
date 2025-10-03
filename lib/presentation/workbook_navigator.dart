@@ -1934,6 +1934,21 @@ class _ScriptEditorOverlayHost extends StatefulWidget {
 
 class _ScriptEditorOverlayHostState extends State<_ScriptEditorOverlayHost> {
   OverlayEntry? _entry;
+  bool _overlayRebuildScheduled = false;
+
+  void _scheduleOverlayRebuild() {
+    if (_overlayRebuildScheduled) {
+      return;
+    }
+    _overlayRebuildScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _overlayRebuildScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      _entry?.markNeedsBuild();
+    });
+  }
 
   @override
   void initState() {
@@ -1951,7 +1966,7 @@ class _ScriptEditorOverlayHostState extends State<_ScriptEditorOverlayHost> {
     } else if (oldWidget.isActive && !widget.isActive) {
       _removeEntry();
     } else if (widget.isActive && _entry != null) {
-      _entry!.markNeedsBuild();
+      _scheduleOverlayRebuild();
     }
   }
 
@@ -1961,7 +1976,7 @@ class _ScriptEditorOverlayHostState extends State<_ScriptEditorOverlayHost> {
         return;
       }
       if (_entry != null) {
-        _entry!.markNeedsBuild();
+        _scheduleOverlayRebuild();
         return;
       }
       final overlay = Overlay.of(context, rootOverlay: true);
@@ -1989,7 +2004,7 @@ class _ScriptEditorOverlayHostState extends State<_ScriptEditorOverlayHost> {
   @override
   Widget build(BuildContext context) {
     if (widget.isActive && _entry != null) {
-      _entry!.markNeedsBuild();
+      _scheduleOverlayRebuild();
     }
     return const SizedBox.shrink();
   }
