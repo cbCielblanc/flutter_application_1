@@ -35,7 +35,7 @@ class TopAlignedCodeField extends StatefulWidget {
     this.lineNumbers = true,
     this.horizontalScroll = true,
     this.selectionControls,
-    this.textAlignVertical = TextAlignVertical.center,
+    this.textAlignVertical = TextAlignVertical.top,
   });
 
   final SmartQuotesType? smartQuotesType;
