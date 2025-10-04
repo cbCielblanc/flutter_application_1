@@ -48,7 +48,23 @@ class SetPageLayoutCommand extends WorkbookCommand {
       return WorkbookCommandResult(workbook: context.workbook);
     }
 
-    final updatedPage = page.copyWith(layout: layout);
+    MenuTree? treeOverride;
+    if (layout == 'tree') {
+      if (page.tree.isNotEmpty) {
+        treeOverride = page.tree;
+      } else {
+        final generated = MenuTree.fromWorkbookPages(context.workbook.pages);
+        if (generated.isNotEmpty) {
+          treeOverride = generated;
+        }
+      }
+    }
+
+    final updatedPage = page.copyWith(
+      layout: layout,
+      tree: treeOverride,
+      metadata: treeOverride != null ? {'tree': treeOverride.toMetadata()} : null,
+    );
     final updatedWorkbook = replacePage(
       context.workbook,
       targetIndex,
