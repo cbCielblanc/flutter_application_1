@@ -281,10 +281,7 @@ class ScriptRuntime {
 
   Map<String, Object?> _sheetContext(Sheet sheet) {
     return <String, Object?>{
-      'rowCount': sheet.rowCount,
-      'columnCount': sheet.columnCount,
-      'frozenColumns': sheet.frozenColumns,
-      'frozenRows': sheet.frozenRows,
+      ...sheet.metadata,
     };
   }
 
