@@ -281,23 +281,6 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: SizedBox(
-                  height: _kWorkspaceToggleTabHeight,
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: _buildWorkspaceToggleTab(
-                      context: context,
-                      expanded: true,
-                      onPressed: () {
-                        _handleExitScriptEditorFullscreen();
-                        _toggleAdminWorkspaceVisibility();
-                      },
-                    ),
-                  ),
-                ),
-              ),
               Expanded(
                 child: Text(
                   'Espace de développement',

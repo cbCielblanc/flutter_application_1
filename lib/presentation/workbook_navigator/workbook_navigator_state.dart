@@ -378,39 +378,42 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
         );
 
         if (_isAdmin) {
+          Widget buildWorkbookWithToggle({required bool expanded}) {
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                Padding(
+                  padding:
+                      const EdgeInsets.only(right: _kWorkspaceToggleTabWidth),
+                  child: workbookSurface,
+                ),
+                Align(
+                  alignment: Alignment.topRight,
+                  child: SafeArea(
+                    minimum: const EdgeInsets.only(top: 24),
+                    child: _buildWorkspaceToggleTab(
+                      context: context,
+                      expanded: expanded,
+                      onPressed: () {
+                        if (expanded) {
+                          _handleExitScriptEditorFullscreen();
+                        }
+                        _toggleAdminWorkspaceVisibility();
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+
           return LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth >= 1100;
               if (!_adminWorkspaceVisible) {
                 return Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Padding(
-                        padding:
-                            const EdgeInsets.only(right: _kWorkspaceToggleTabWidth),
-                        child: workbookSurface,
-                      ),
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: SafeArea(
-                          minimum: EdgeInsets.zero,
-                          child: SizedBox(
-                            height: _kWorkspaceToggleTabHeight,
-                            child: Align(
-                              alignment: Alignment.topRight,
-                              child: _buildWorkspaceToggleTab(
-                                context: context,
-                                expanded: false,
-                                onPressed: _toggleAdminWorkspaceVisibility,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  child: buildWorkbookWithToggle(expanded: false),
                 );
               }
               if (isWide) {
@@ -421,7 +424,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
                       flex: 7,
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
-                        child: workbookSurface,
+                        child: buildWorkbookWithToggle(expanded: true),
                       ),
                     ),
                     const VerticalDivider(width: 1),
@@ -440,7 +443,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: workbookSurface,
+                      child: buildWorkbookWithToggle(expanded: true),
                     ),
                   ),
                   const Divider(height: 1),
