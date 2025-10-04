@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:python_ffi/python_ffi_dart.dart';
+import 'package:python_ffi_dart/python_ffi_dart.dart';
 
 import '../../domain/menu_page.dart';
 import '../../domain/notes_page.dart';
