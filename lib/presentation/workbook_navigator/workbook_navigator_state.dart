@@ -384,18 +384,25 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
               if (!_adminWorkspaceVisible) {
                 return Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Stack(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Positioned.fill(child: workbookSurface),
-                      Positioned(
-                        top: 12,
-                        right: 12,
-                        child: FilledButton.icon(
-                          onPressed: _toggleAdminWorkspaceVisibility,
-                          icon: const Icon(Icons.visibility_outlined),
-                          label:
-                              const Text('Afficher l’espace de développement'),
+                      SizedBox(
+                        width: _kWorkspaceToggleTabWidth,
+                        child: Align(
+                          alignment: Alignment.topLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 24),
+                            child: _buildWorkspaceToggleTab(
+                              context: context,
+                              expanded: false,
+                              onPressed: _toggleAdminWorkspaceVisibility,
+                            ),
+                          ),
                         ),
+                      ),
+                      Expanded(
+                        child: workbookSurface,
                       ),
                     ],
                   ),

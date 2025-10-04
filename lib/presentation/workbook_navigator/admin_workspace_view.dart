@@ -1,6 +1,71 @@
 part of 'workbook_navigator.dart';
 
+const double _kWorkspaceToggleTabWidth = 48;
+const double _kWorkspaceToggleTabHeight = 80;
+const String _kWorkspaceToggleTooltip =
+    'Afficher/Masquer l’espace de développement';
+
 extension _AdminWorkspaceView on _WorkbookNavigatorState {
+  Widget _buildWorkspaceToggleTab({
+    required BuildContext context,
+    required bool expanded,
+    required VoidCallback onPressed,
+  }) {
+    final theme = Theme.of(context);
+    final icon = expanded
+        ? Icons.arrow_back_ios_new
+        : Icons.arrow_forward_ios;
+    final foregroundColor = theme.colorScheme.primary;
+    final backgroundColor = theme.colorScheme.surface;
+    final borderColor = theme.colorScheme.outlineVariant;
+
+    return Semantics(
+      button: true,
+      label: _kWorkspaceToggleTooltip,
+      child: Tooltip(
+        message: _kWorkspaceToggleTooltip,
+        child: SizedBox(
+          width: _kWorkspaceToggleTabWidth,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onPressed,
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+                child: Container(
+                  height: _kWorkspaceToggleTabHeight,
+                  width: _kWorkspaceToggleTabWidth,
+                  decoration: BoxDecoration(
+                    color: backgroundColor,
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(12),
+                      bottomRight: Radius.circular(12),
+                    ),
+                    border: Border.all(color: borderColor),
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.shadowColor.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Icon(icon, size: 16, color: foregroundColor),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildAdminWorkspace(BuildContext context) {
     final theme = Theme.of(context);
     final workbook = _manager.workbook;
@@ -31,42 +96,65 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
     final overlayBuilder = _scriptEditorOverlayBuilder ??
         (_) => const SizedBox.shrink();
 
-    return Stack(
-      clipBehavior: Clip.none,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Card(
-          clipBehavior: Clip.antiAlias,
-          child: DefaultTabController(
-            length: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  color: theme.colorScheme.surface,
-                  child: TabBar(
-                    labelColor: theme.colorScheme.primary,
-                    indicatorColor: theme.colorScheme.primary,
-                    tabs: const [
-                      Tab(icon: Icon(Icons.code), text: 'Scripts'),
-                      Tab(icon: Icon(Icons.menu_book_outlined), text: 'Documentation'),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      editorLayout,
-                      _buildAdminDocumentationTab(context),
-                    ],
-                  ),
-                ),
-              ],
+        SizedBox(
+          width: _kWorkspaceToggleTabWidth,
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 24),
+              child: _buildWorkspaceToggleTab(
+                context: context,
+                expanded: true,
+                onPressed: () {
+                  _handleExitScriptEditorFullscreen();
+                  _toggleAdminWorkspaceVisibility();
+                },
+              ),
             ),
           ),
         ),
-        _ScriptEditorOverlayHost(
-          isActive: _adminWorkspaceVisible && _scriptEditorFullscreen,
-          overlayBuilder: overlayBuilder,
+        Expanded(
+          child: Stack(
+            children: [
+              Card(
+                clipBehavior: Clip.antiAlias,
+                child: DefaultTabController(
+                  length: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        color: theme.colorScheme.surface,
+                        child: TabBar(
+                          labelColor: theme.colorScheme.primary,
+                          indicatorColor: theme.colorScheme.primary,
+                          tabs: const [
+                            Tab(icon: Icon(Icons.code), text: 'Scripts'),
+                            Tab(icon: Icon(Icons.menu_book_outlined), text: 'Documentation'),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: TabBarView(
+                          children: [
+                            editorLayout,
+                            _buildAdminDocumentationTab(context),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              _ScriptEditorOverlayHost(
+                isActive: _adminWorkspaceVisible && _scriptEditorFullscreen,
+                overlayBuilder: overlayBuilder,
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -221,15 +309,6 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
                   style: theme.textTheme.titleMedium,
                 ),
               ),
-              TextButton.icon(
-                onPressed: () {
-                  _handleExitScriptEditorFullscreen();
-                  _toggleAdminWorkspaceVisibility();
-                },
-                icon: const Icon(Icons.visibility_off_outlined),
-                label: const Text('Masquer'),
-              ),
-              const SizedBox(width: 12),
               ...buildActionButtons(includeFullscreenToggle: true),
             ],
           ),
@@ -267,74 +346,85 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
             child: Scaffold(
               backgroundColor: theme.colorScheme.surface,
               body: SafeArea(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                child: Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Espace de développement',
-                              style: theme.textTheme.titleMedium,
-                            ),
-                          ),
-                          TextButton.icon(
-                            onPressed: () {
-                              _handleExitScriptEditorFullscreen();
-                              _toggleAdminWorkspaceVisibility();
-                            },
-                            icon: const Icon(Icons.visibility_off_outlined),
-                            label: const Text('Masquer'),
-                          ),
-                          const SizedBox(width: 12),
-                          FilledButton.icon(
-                            onPressed: _handleExitScriptEditorFullscreen,
-                            icon: const Icon(Icons.fullscreen_exit),
-                            label: const Text('Quitter le plein écran'),
-                          ),
-                          const SizedBox(width: 12),
-                          ...buildActionButtons(includeFullscreenToggle: false),
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    Container(
-                      color: theme.colorScheme.surface,
-                      child: TabBar(
-                        labelColor: theme.colorScheme.primary,
-                        indicatorColor: theme.colorScheme.primary,
-                        tabs: const [
-                          Tab(icon: Icon(Icons.code), text: 'Scripts'),
-                          Tab(
-                            icon: Icon(Icons.menu_book_outlined),
-                            text: 'Documentation',
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: TabBarView(
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                          child: Row(
                             children: [
-                              SizedBox(
-                                width: 240,
-                                child: _buildScriptLibraryPanel(context),
-                              ),
-                              const VerticalDivider(width: 1),
                               Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                                  child: buildEditorContent(fullscreen: true),
+                                child: Text(
+                                  'Espace de développement',
+                                  style: theme.textTheme.titleMedium,
                                 ),
+                              ),
+                              FilledButton.icon(
+                                onPressed: _handleExitScriptEditorFullscreen,
+                                icon: const Icon(Icons.fullscreen_exit),
+                                label: const Text('Quitter le plein écran'),
+                              ),
+                              const SizedBox(width: 12),
+                              ...buildActionButtons(
+                                includeFullscreenToggle: false,
                               ),
                             ],
                           ),
-                          _buildAdminDocumentationTab(context),
-                        ],
+                        ),
+                        const Divider(height: 1),
+                        Container(
+                          color: theme.colorScheme.surface,
+                          child: TabBar(
+                            labelColor: theme.colorScheme.primary,
+                            indicatorColor: theme.colorScheme.primary,
+                            tabs: const [
+                              Tab(icon: Icon(Icons.code), text: 'Scripts'),
+                              Tab(
+                                icon: Icon(Icons.menu_book_outlined),
+                                text: 'Documentation',
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: TabBarView(
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  SizedBox(
+                                    width: 240,
+                                    child: _buildScriptLibraryPanel(context),
+                                  ),
+                                  const VerticalDivider(width: 1),
+                                  Expanded(
+                                    child: Padding(
+                                      padding:
+                                          const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                                      child: buildEditorContent(fullscreen: true),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              _buildAdminDocumentationTab(context),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    Positioned(
+                      top: 32,
+                      left: -_kWorkspaceToggleTabWidth,
+                      child: _buildWorkspaceToggleTab(
+                        context: context,
+                        expanded: true,
+                        onPressed: () {
+                          _handleExitScriptEditorFullscreen();
+                          _toggleAdminWorkspaceVisibility();
+                        },
                       ),
                     ),
                   ],
