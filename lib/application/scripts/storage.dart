@@ -124,12 +124,14 @@ class ScriptStorage {
 
   Future<StoredScript> saveScript(
     ScriptDescriptor descriptor,
-    String source,
-  ) async {
-    final document = await _loadDocument(
-      descriptor: descriptor,
-      source: source,
-    );
+    String source, {
+    ScriptDocument? validatedDocument,
+  }) async {
+    final document = validatedDocument ??
+        await _loadDocument(
+          descriptor: descriptor,
+          source: source,
+        );
     if (!_supportsFileSystem) {
       return StoredScript(
         descriptor: descriptor,
@@ -157,6 +159,17 @@ class ScriptStorage {
       document: document,
       origin: file.path,
       isMutable: true,
+    );
+  }
+
+  Future<ScriptDocument> validateScript({
+    required ScriptDescriptor descriptor,
+    required String source,
+  }) {
+    return _loadDocument(
+      descriptor: descriptor,
+      source: source,
+      strict: true,
     );
   }
 
@@ -290,6 +303,7 @@ class ScriptStorage {
   Future<ScriptDocument> _loadDocument({
     required ScriptDescriptor descriptor,
     required String source,
+    bool strict = false,
   }) async {
     final cacheKey = _cacheKey(descriptor);
     final signature = source.hashCode;
@@ -309,6 +323,12 @@ class ScriptStorage {
       );
       exports = Map<String, PythonScriptExport>.from(module.exports);
     } on UnsupportedError catch (error) {
+      if (strict) {
+        throw ScriptValidationException(
+          'Interpréteur Python indisponible: $error',
+          allowSave: true,
+        );
+      }
       debugPrint('Interpreteur Python indisponible: $error');
       module = PythonScriptModule.empty(
         moduleName: descriptor.key,
@@ -319,6 +339,9 @@ class ScriptStorage {
       debugPrint(
         'Erreur lors de l\'import du module ${descriptor.fileName}: $error\n$stackTrace',
       );
+      if (strict) {
+        throw error;
+      }
       module = PythonScriptModule.empty(
         moduleName: descriptor.key,
         scope: descriptor.scope,
@@ -329,6 +352,12 @@ class ScriptStorage {
         'Erreur inattendue lors du chargement du module ${descriptor.fileName}: '
         '$error\n$stackTrace',
       );
+      if (strict) {
+        throw ScriptValidationException(
+          'Erreur inattendue lors du chargement du module ${descriptor.fileName}: '
+          '$error',
+        );
+      }
       module = PythonScriptModule.empty(
         moduleName: descriptor.key,
         scope: descriptor.scope,
@@ -369,5 +398,15 @@ class _CachedDocument {
   bool matches(int otherSignature, String otherSource) {
     return signature == otherSignature && source == otherSource;
   }
+}
+
+class ScriptValidationException implements Exception {
+  ScriptValidationException(this.message, {this.allowSave = false});
+
+  final String message;
+  final bool allowSave;
+
+  @override
+  String toString() => message;
 }
 
