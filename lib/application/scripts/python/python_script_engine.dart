@@ -283,11 +283,15 @@ class PythonScriptEngine {
 }
 
 final class _DynamicPythonModule extends PythonModule {
-  _DynamicPythonModule.from(super.delegate) : super.from(delegate);
+  _DynamicPythonModule.from(
+    PythonModuleInterface<PythonFfiDelegate<Object?>, Object?> delegate,
+  ) : super.from(delegate);
 }
 
 final class _BuiltinsModule extends PythonModule {
-  _BuiltinsModule.from(super.delegate) : super.from(delegate);
+  _BuiltinsModule.from(
+    PythonModuleInterface<PythonFfiDelegate<Object?>, Object?> delegate,
+  ) : super.from(delegate);
 
   PythonFunction get dirFunction => _DynamicPythonFunction.from(getFunction('dir'));
 
@@ -296,16 +300,22 @@ final class _BuiltinsModule extends PythonModule {
 }
 
 final class _ImportlibModule extends PythonModule {
-  _ImportlibModule.from(super.delegate) : super.from(delegate);
+  _ImportlibModule.from(
+    PythonModuleInterface<PythonFfiDelegate<Object?>, Object?> delegate,
+  ) : super.from(delegate);
 
   PythonFunction get invalidateCaches =>
       _DynamicPythonFunction.from(getFunction('invalidate_caches'));
 }
 
 final class _DynamicPythonObject extends PythonObject {
-  _DynamicPythonObject.from(super.delegate) : super.from(delegate);
+  _DynamicPythonObject.from(
+    PythonObjectInterface<PythonFfiDelegate<Object?>, Object?> delegate,
+  ) : super.from(delegate);
 }
 
 final class _DynamicPythonFunction extends PythonFunction {
-  _DynamicPythonFunction.from(super.delegate) : super.from(delegate);
+  _DynamicPythonFunction.from(
+    PythonFunctionInterface<PythonFfiDelegate<Object?>, Object?> delegate,
+  ) : super.from(delegate);
 }
