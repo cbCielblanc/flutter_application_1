@@ -384,18 +384,25 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
               if (!_adminWorkspaceVisible) {
                 return Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Stack(
-                    clipBehavior: Clip.none,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Positioned.fill(child: workbookSurface),
-                      Positioned(
-                        top: 24,
-                        left: -_kWorkspaceToggleTabWidth,
-                        child: _buildWorkspaceToggleTab(
-                          context: context,
-                          expanded: false,
-                          onPressed: _toggleAdminWorkspaceVisibility,
+                      SizedBox(
+                        width: _kWorkspaceToggleTabWidth,
+                        child: Align(
+                          alignment: Alignment.topLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 24),
+                            child: _buildWorkspaceToggleTab(
+                              context: context,
+                              expanded: false,
+                              onPressed: _toggleAdminWorkspaceVisibility,
+                            ),
+                          ),
                         ),
+                      ),
+                      Expanded(
+                        child: workbookSurface,
                       ),
                     ],
                   ),

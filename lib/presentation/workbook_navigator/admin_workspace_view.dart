@@ -1,6 +1,7 @@
 part of 'workbook_navigator.dart';
 
-const double _kWorkspaceToggleTabWidth = 176;
+const double _kWorkspaceToggleTabWidth = 48;
+const double _kWorkspaceToggleTabHeight = 80;
 const String _kWorkspaceToggleTooltip =
     'Afficher/Masquer l’espace de développement';
 
@@ -11,7 +12,6 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
     required VoidCallback onPressed,
   }) {
     final theme = Theme.of(context);
-    final label = expanded ? 'Masquer' : 'Afficher';
     final icon = expanded
         ? Icons.arrow_back_ios_new
         : Icons.arrow_forward_ios;
@@ -37,8 +37,8 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
                   bottomRight: Radius.circular(12),
                 ),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  height: _kWorkspaceToggleTabHeight,
+                  width: _kWorkspaceToggleTabWidth,
                   decoration: BoxDecoration(
                     color: backgroundColor,
                     borderRadius: const BorderRadius.only(
@@ -54,19 +54,8 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
                       ),
                     ],
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(icon, size: 16, color: foregroundColor),
-                      const SizedBox(width: 8),
-                      Text(
-                        label,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: foregroundColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                  child: Center(
+                    child: Icon(icon, size: 16, color: foregroundColor),
                   ),
                 ),
               ),
@@ -107,54 +96,65 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
     final overlayBuilder = _scriptEditorOverlayBuilder ??
         (_) => const SizedBox.shrink();
 
-    return Stack(
-      clipBehavior: Clip.none,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Positioned(
-          top: 24,
-          left: -_kWorkspaceToggleTabWidth,
-          child: _buildWorkspaceToggleTab(
-            context: context,
-            expanded: true,
-            onPressed: () {
-              _handleExitScriptEditorFullscreen();
-              _toggleAdminWorkspaceVisibility();
-            },
-          ),
-        ),
-        Card(
-          clipBehavior: Clip.antiAlias,
-          child: DefaultTabController(
-            length: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  color: theme.colorScheme.surface,
-                  child: TabBar(
-                    labelColor: theme.colorScheme.primary,
-                    indicatorColor: theme.colorScheme.primary,
-                    tabs: const [
-                      Tab(icon: Icon(Icons.code), text: 'Scripts'),
-                      Tab(icon: Icon(Icons.menu_book_outlined), text: 'Documentation'),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      editorLayout,
-                      _buildAdminDocumentationTab(context),
-                    ],
-                  ),
-                ),
-              ],
+        SizedBox(
+          width: _kWorkspaceToggleTabWidth,
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 24),
+              child: _buildWorkspaceToggleTab(
+                context: context,
+                expanded: true,
+                onPressed: () {
+                  _handleExitScriptEditorFullscreen();
+                  _toggleAdminWorkspaceVisibility();
+                },
+              ),
             ),
           ),
         ),
-        _ScriptEditorOverlayHost(
-          isActive: _adminWorkspaceVisible && _scriptEditorFullscreen,
-          overlayBuilder: overlayBuilder,
+        Expanded(
+          child: Stack(
+            children: [
+              Card(
+                clipBehavior: Clip.antiAlias,
+                child: DefaultTabController(
+                  length: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        color: theme.colorScheme.surface,
+                        child: TabBar(
+                          labelColor: theme.colorScheme.primary,
+                          indicatorColor: theme.colorScheme.primary,
+                          tabs: const [
+                            Tab(icon: Icon(Icons.code), text: 'Scripts'),
+                            Tab(icon: Icon(Icons.menu_book_outlined), text: 'Documentation'),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: TabBarView(
+                          children: [
+                            editorLayout,
+                            _buildAdminDocumentationTab(context),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              _ScriptEditorOverlayHost(
+                isActive: _adminWorkspaceVisible && _scriptEditorFullscreen,
+                overlayBuilder: overlayBuilder,
+              ),
+            ],
+          ),
         ),
       ],
     );
