@@ -282,11 +282,11 @@ class PythonScriptEngine {
   }
 }
 
-class _DynamicPythonModule extends PythonModule {
+final class _DynamicPythonModule extends PythonModule {
   _DynamicPythonModule.from(super.delegate) : super.from(delegate);
 }
 
-class _BuiltinsModule extends PythonModule {
+final class _BuiltinsModule extends PythonModule {
   _BuiltinsModule.from(super.delegate) : super.from(delegate);
 
   PythonFunction get dirFunction => _DynamicPythonFunction.from(getFunction('dir'));
@@ -295,17 +295,17 @@ class _BuiltinsModule extends PythonModule {
       _DynamicPythonFunction.from(getFunction('callable'));
 }
 
-class _ImportlibModule extends PythonModule {
+final class _ImportlibModule extends PythonModule {
   _ImportlibModule.from(super.delegate) : super.from(delegate);
 
   PythonFunction get invalidateCaches =>
       _DynamicPythonFunction.from(getFunction('invalidate_caches'));
 }
 
-class _DynamicPythonObject extends PythonObject {
+final class _DynamicPythonObject extends PythonObject {
   _DynamicPythonObject.from(super.delegate) : super.from(delegate);
 }
 
-class _DynamicPythonFunction extends PythonFunction {
+final class _DynamicPythonFunction extends PythonFunction {
   _DynamicPythonFunction.from(super.delegate) : super.from(delegate);
 }
