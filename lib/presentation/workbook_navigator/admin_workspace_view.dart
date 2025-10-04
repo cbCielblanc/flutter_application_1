@@ -1,7 +1,7 @@
 part of 'workbook_navigator.dart';
 
-const double _kWorkspaceToggleTabWidth = 48;
-const double _kWorkspaceToggleTabHeight = 80;
+const double _kWorkspaceToggleTabWidth = 40;
+const double _kWorkspaceToggleTabHeight = 64;
 const String _kWorkspaceToggleTooltip =
     'Afficher/Masquer l’espace de développement';
 
@@ -104,7 +104,7 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
           child: Align(
             alignment: Alignment.topLeft,
             child: Padding(
-              padding: const EdgeInsets.only(top: 24),
+              padding: const EdgeInsets.only(top: 16),
               child: _buildWorkspaceToggleTab(
                 context: context,
                 expanded: true,
@@ -416,7 +416,7 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
                       ],
                     ),
                     Positioned(
-                      top: 32,
+                      top: 24,
                       left: -_kWorkspaceToggleTabWidth,
                       child: _buildWorkspaceToggleTab(
                         context: context,
