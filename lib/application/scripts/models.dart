@@ -1,39 +1,43 @@
 import 'package:meta/meta.dart';
 
+import 'python/python_script_engine.dart';
+import 'scope.dart';
+
+export 'scope.dart';
+
 @immutable
 class ScriptDocument {
   const ScriptDocument({
     required this.id,
     required this.name,
     required this.scope,
-    required this.handlers,
-    this.imports = const <String>[],
-    this.snippets = const <String, ScriptSnippet>{},
+    required this.module,
+    required this.exports,
   });
 
   final String id;
   final String name;
   final ScriptScope scope;
-  final List<String> imports;
-  final Map<String, ScriptSnippet> snippets;
-  final List<ScriptHandler> handlers;
+  final PythonScriptModule module;
+  final Map<String, PythonScriptExport> exports;
+
+  Iterable<String> get exportNames => exports.keys;
+
+  PythonScriptExport? operator [](String name) => exports[name];
 
   ScriptDocument copyWith({
-    List<ScriptHandler>? handlers,
-    Map<String, ScriptSnippet>? snippets,
+    PythonScriptModule? module,
+    Map<String, PythonScriptExport>? exports,
   }) {
     return ScriptDocument(
       id: id,
       name: name,
       scope: scope,
-      imports: imports,
-      snippets: snippets ?? this.snippets,
-      handlers: handlers ?? this.handlers,
+      module: module ?? this.module,
+      exports: exports ?? this.exports,
     );
   }
 }
-
-enum ScriptScope { global, page, shared }
 
 enum ScriptEventType {
   workbookOpen,
@@ -88,47 +92,6 @@ extension ScriptEventTypeLabel on ScriptEventType {
 }
 
 @immutable
-class ScriptHandler {
-  const ScriptHandler({
-    required this.eventType,
-    required this.actions,
-    this.filters = const <String, Object?>{},
-    this.description,
-  });
-
-  final ScriptEventType eventType;
-  final Map<String, Object?> filters;
-  final List<ScriptAction> actions;
-  final String? description;
-}
-
-@immutable
-class ScriptAction {
-  const ScriptAction({
-    required this.type,
-    this.parameters = const <String, Object?>{},
-    this.description,
-  });
-
-  final String type;
-  final Map<String, Object?> parameters;
-  final String? description;
-}
-
-@immutable
-class ScriptSnippet {
-  const ScriptSnippet({
-    required this.name,
-    required this.actions,
-    this.description,
-  });
-
-  final String name;
-  final List<ScriptAction> actions;
-  final String? description;
-}
-
-@immutable
 class ScriptDescriptor {
   const ScriptDescriptor({required this.scope, required this.key});
 
@@ -138,11 +101,11 @@ class ScriptDescriptor {
   String get fileName {
     switch (scope) {
       case ScriptScope.global:
-        return 'global/$key.yaml';
+        return 'global/$key.py';
       case ScriptScope.page:
-        return 'pages/$key.yaml';
+        return 'pages/$key.py';
       case ScriptScope.shared:
-        return 'shared/$key.yaml';
+        return 'shared/$key.py';
     }
   }
 }
@@ -169,13 +132,4 @@ String normaliseScriptKey(String input) {
     return 'script';
   }
   return result;
-}
-
-class ScriptParseException implements Exception {
-  ScriptParseException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => 'ScriptParseException: $message';
 }

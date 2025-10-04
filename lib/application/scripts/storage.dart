@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'models.dart';
-import 'parser.dart';
+import 'python/python_script_engine.dart';
 
 class StoredScript {
   StoredScript({
@@ -40,12 +40,12 @@ class StoredScript {
 }
 
 class ScriptStorage {
-  ScriptStorage({AssetBundle? bundle, ScriptParser? parser})
+  ScriptStorage({AssetBundle? bundle, PythonScriptEngine? engine})
     : _bundle = bundle ?? rootBundle,
-      _parser = parser ?? ScriptParser();
+      _engine = engine ?? PythonScriptEngine();
 
   final AssetBundle _bundle;
-  final ScriptParser _parser;
+  final PythonScriptEngine _engine;
   final bool _supportsFileSystem = !kIsWeb;
 
   Directory? _writeDirectory;
@@ -88,10 +88,9 @@ class ScriptStorage {
       final file = await _resolveFile(descriptor);
       if (file != null && await file.exists()) {
         final source = await file.readAsString();
-        final document = _parser.parse(
-          id: descriptor.key,
+        final document = await _loadDocument(
+          descriptor: descriptor,
           source: source,
-          forcedScope: descriptor.scope,
         );
         return StoredScript(
           descriptor: descriptor,
@@ -105,10 +104,9 @@ class ScriptStorage {
     final assetPath = _assetPath(descriptor);
     try {
       final source = await _bundle.loadString(assetPath);
-      final document = _parser.parse(
-        id: descriptor.key,
+      final document = await _loadDocument(
+        descriptor: descriptor,
         source: source,
-        forcedScope: descriptor.scope,
       );
       return StoredScript(
         descriptor: descriptor,
@@ -126,10 +124,9 @@ class ScriptStorage {
     ScriptDescriptor descriptor,
     String source,
   ) async {
-    final document = _parser.parse(
-      id: descriptor.key,
+    final document = await _loadDocument(
+      descriptor: descriptor,
       source: source,
-      forcedScope: descriptor.scope,
     );
     if (!_supportsFileSystem) {
       return StoredScript(
@@ -185,7 +182,7 @@ class ScriptStorage {
         if (entity is! File) {
           continue;
         }
-        if (!entity.path.endsWith('.yaml')) {
+        if (!entity.path.endsWith('.py')) {
           continue;
         }
         final relative = entity.path.substring(basePath.length + 1);
@@ -205,10 +202,9 @@ class ScriptStorage {
           continue;
         }
         final source = await entity.readAsString();
-        final document = _parser.parse(
-          id: descriptor.key,
+        final document = await _loadDocument(
+          descriptor: descriptor,
           source: source,
-          forcedScope: descriptor.scope,
         );
         results.add(
           StoredScript(
@@ -249,7 +245,7 @@ class ScriptStorage {
       }
       final scripts = <String>[];
       decoded.forEach((key, value) {
-        if (key.startsWith('assets/scripts/') && key.endsWith('.yaml')) {
+        if (key.startsWith('assets/scripts/') && key.endsWith('.py')) {
           scripts.add(key);
         }
       });
@@ -273,10 +269,10 @@ class ScriptStorage {
     }
     final scopeSegment = segments.first;
     final fileName = segments.last;
-    if (!fileName.endsWith('.yaml')) {
+    if (!fileName.endsWith('.py')) {
       return null;
     }
-    final key = fileName.substring(0, fileName.length - 5);
+    final key = fileName.substring(0, fileName.length - 3);
     switch (scopeSegment) {
       case 'global':
         return ScriptDescriptor(scope: ScriptScope.global, key: key);
@@ -289,3 +285,38 @@ class ScriptStorage {
     }
   }
 }
+
+  Future<ScriptDocument> _loadDocument({
+    required ScriptDescriptor descriptor,
+    required String source,
+  }) async {
+    try {
+      final module = await _engine.loadModule(
+        id: descriptor.key,
+        scope: descriptor.scope,
+        source: source,
+      );
+      final exports = Map<String, PythonScriptExport>.from(module.exports);
+      final name = descriptor.key;
+      return ScriptDocument(
+        id: descriptor.key,
+        name: name,
+        scope: descriptor.scope,
+        module: module,
+        exports: exports,
+      );
+    } on UnsupportedError catch (error) {
+      debugPrint('Interpréteur Python indisponible: $error');
+      final module = PythonScriptModule.empty(
+        moduleName: descriptor.key,
+        scope: descriptor.scope,
+      );
+      return ScriptDocument(
+        id: descriptor.key,
+        name: descriptor.key,
+        scope: descriptor.scope,
+        module: module,
+        exports: const <String, PythonScriptExport>{},
+      );
+    }
+  }
