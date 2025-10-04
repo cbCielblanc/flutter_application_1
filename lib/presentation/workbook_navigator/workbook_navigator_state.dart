@@ -41,6 +41,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
   bool _suppressScriptEditorChanges = false;
   bool _scriptEditorFullscreen = false;
   bool _scriptEditorSplitPreview = false;
+  bool _adminWorkspaceVisible = true;
   bool _scriptEditorMutable = true;
   WidgetBuilder? _scriptEditorOverlayBuilder;
   late int _currentPageIndex;
@@ -64,6 +65,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
     _customActionTemplateController = TextEditingController();
     _sharedScriptKeyController.addListener(_handleSharedScriptKeyChanged);
     if (_isAdmin) {
+      _adminWorkspaceVisible = true;
       _initialiseCustomActions();
       unawaited(_refreshScriptLibrary());
     }
@@ -104,6 +106,11 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
       widget.commandManager.addListener(_handleManagerChanged);
     }
     if (!oldWidget.isAdmin && widget.isAdmin) {
+      if (!_adminWorkspaceVisible) {
+        setState(() {
+          _adminWorkspaceVisible = true;
+        });
+      }
       _initialiseCustomActions();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
@@ -117,6 +124,12 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
     if (oldWidget.isAdmin && !widget.isAdmin) {
       _updateScriptTree();
     }
+  }
+
+  void _toggleAdminWorkspaceVisibility() {
+    setState(() {
+      _adminWorkspaceVisible = !_adminWorkspaceVisible;
+    });
   }
 
   @override
@@ -368,6 +381,26 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
           return LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth >= 1100;
+              if (!_adminWorkspaceVisible) {
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(child: workbookSurface),
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: FilledButton.icon(
+                          onPressed: _toggleAdminWorkspaceVisibility,
+                          icon: const Icon(Icons.visibility_outlined),
+                          label:
+                              const Text('Afficher l’espace de développement'),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
               if (isWide) {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
