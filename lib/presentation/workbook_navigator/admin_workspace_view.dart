@@ -13,8 +13,8 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
   }) {
     final theme = Theme.of(context);
     final icon = expanded
-        ? Icons.arrow_back_ios_new
-        : Icons.arrow_forward_ios;
+        ? Icons.arrow_forward_ios
+        : Icons.arrow_back_ios_new;
     final foregroundColor = theme.colorScheme.primary;
     final backgroundColor = theme.colorScheme.surface;
     final borderColor = theme.colorScheme.outlineVariant;
