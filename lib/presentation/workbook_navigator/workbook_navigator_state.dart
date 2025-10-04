@@ -385,16 +385,16 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
                 return Padding(
                   padding: const EdgeInsets.all(16),
                   child: Stack(
+                    clipBehavior: Clip.none,
                     children: [
                       Positioned.fill(child: workbookSurface),
                       Positioned(
-                        top: 12,
-                        right: 12,
-                        child: FilledButton.icon(
+                        top: 24,
+                        left: -_kWorkspaceToggleTabWidth,
+                        child: _buildWorkspaceToggleTab(
+                          context: context,
+                          expanded: false,
                           onPressed: _toggleAdminWorkspaceVisibility,
-                          icon: const Icon(Icons.visibility_outlined),
-                          label:
-                              const Text('Afficher l’espace de développement'),
                         ),
                       ),
                     ],
