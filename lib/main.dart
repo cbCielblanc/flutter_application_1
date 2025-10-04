@@ -10,7 +10,7 @@ import 'domain/menu_page.dart';
 import 'domain/sheet.dart';
 import 'domain/workbook.dart';
 import 'presentation/theme/app_theme.dart';
-import 'presentation/workbook_navigator.dart';
+import 'presentation/workbook_navigator/workbook_navigator.dart';
 
 enum AppMode { user, admin }
 
