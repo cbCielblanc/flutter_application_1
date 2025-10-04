@@ -3,19 +3,19 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:python_ffi_dart/python_ffi_dart.dart';
 
-import '../../domain/menu_page.dart';
 import '../../domain/notes_page.dart';
 import '../../domain/sheet.dart';
 import '../../domain/workbook.dart';
 import '../../domain/workbook_page.dart';
 import '../../state/sheet_selection_state.dart';
 import '../commands/workbook_command_manager.dart';
+import 'context.dart';
 import 'models.dart';
+import 'navigator_binding.dart';
 import 'scope.dart';
 import 'storage.dart';
 
 typedef ScriptLogSink = FutureOr<void> Function(String message);
-typedef _ContextMap = Map<String, Object?>;
 
 class ScriptRuntime {
   ScriptRuntime({
@@ -52,42 +52,32 @@ class ScriptRuntime {
   }
 
   Future<void> dispatchWorkbookOpen() async {
-    final workbook = commandManager.workbook;
     await _dispatch(
       type: ScriptEventType.workbookOpen,
       pageKey: null,
-      context: _baseContext(workbook: workbook),
     );
   }
 
   Future<void> dispatchWorkbookClose() async {
-    final workbook = commandManager.workbook;
     await _dispatch(
       type: ScriptEventType.workbookClose,
       pageKey: null,
-      context: _baseContext(workbook: workbook),
     );
   }
 
   Future<void> dispatchPageEnter(WorkbookPage page) async {
-    final workbook = commandManager.workbook;
-    final context = _baseContext(workbook: workbook)
-      ..addAll(_pageContext(page: page, workbook: workbook));
     await _dispatch(
       type: ScriptEventType.pageEnter,
       pageKey: _pageKeyFor(page),
-      context: context,
+      page: page,
     );
   }
 
   Future<void> dispatchPageLeave(WorkbookPage page) async {
-    final workbook = commandManager.workbook;
-    final context = _baseContext(workbook: workbook)
-      ..addAll(_pageContext(page: page, workbook: workbook));
     await _dispatch(
       type: ScriptEventType.pageLeave,
       pageKey: _pageKeyFor(page),
-      context: context,
+      page: page,
     );
   }
 
@@ -95,10 +85,12 @@ class ScriptRuntime {
     required Sheet sheet,
     required CellValueChange change,
   }) async {
-    final workbook = commandManager.workbook;
-    final context = _baseContext(workbook: workbook)
-      ..addAll(_pageContext(page: sheet, workbook: workbook))
-      ..addAll(<String, Object?>{
+    await _dispatch(
+      type: ScriptEventType.cellChanged,
+      pageKey: _pageKeyFor(sheet),
+      page: sheet,
+      sheet: sheet,
+      additional: <String, Object?>{
         'cell': <String, Object?>{
           'label': change.position.label,
           'row': change.position.row,
@@ -110,11 +102,7 @@ class ScriptRuntime {
           'newRaw': change.newRaw,
           'newDisplay': change.newDisplay,
         },
-      });
-    await _dispatch(
-      type: ScriptEventType.cellChanged,
-      pageKey: _pageKeyFor(sheet),
-      context: context,
+      },
     );
   }
 
@@ -122,10 +110,12 @@ class ScriptRuntime {
     required Sheet sheet,
     required SelectionChange change,
   }) async {
-    final workbook = commandManager.workbook;
-    final context = _baseContext(workbook: workbook)
-      ..addAll(_pageContext(page: sheet, workbook: workbook))
-      ..addAll(<String, Object?>{
+    await _dispatch(
+      type: ScriptEventType.selectionChanged,
+      pageKey: _pageKeyFor(sheet),
+      page: sheet,
+      sheet: sheet,
+      additional: <String, Object?>{
         'selection': <String, Object?>{
           'previous': change.previous?.label,
           'current': change.current?.label,
@@ -134,11 +124,7 @@ class ScriptRuntime {
           'currentRow': change.current?.row,
           'currentColumn': change.current?.column,
         },
-      });
-    await _dispatch(
-      type: ScriptEventType.selectionChanged,
-      pageKey: _pageKeyFor(sheet),
-      context: context,
+      },
     );
   }
 
@@ -146,23 +132,22 @@ class ScriptRuntime {
     required NotesPage page,
     required String content,
   }) async {
-    final workbook = commandManager.workbook;
-    final context = _baseContext(workbook: workbook)
-      ..addAll(_pageContext(page: page, workbook: workbook))
-      ..addAll(<String, Object?>{
-        'notes': <String, Object?>{'content': content},
-      });
     await _dispatch(
       type: ScriptEventType.notesChanged,
       pageKey: _pageKeyFor(page),
-      context: context,
+      page: page,
+      additional: <String, Object?>{
+        'notes': <String, Object?>{'content': content},
+      },
     );
   }
 
   Future<void> _dispatch({
     required ScriptEventType type,
-    required _ContextMap context,
     String? pageKey,
+    WorkbookPage? page,
+    Sheet? sheet,
+    Map<String, Object?> additional = const <String, Object?>{},
   }) async {
     await initialize();
     final scripts = <StoredScript>[];
@@ -181,7 +166,19 @@ class ScriptRuntime {
     if (scripts.isEmpty) {
       return;
     }
+    final workbook = commandManager.workbook;
     for (final script in scripts) {
+      final context = ScriptContext(
+        descriptor: script.descriptor,
+        eventType: type,
+        workbook: workbook,
+        commandManager: commandManager,
+        log: _logSink,
+        page: page,
+        sheet: sheet,
+        navigatorBinding: _navigatorBinding,
+        additional: additional,
+      );
       await _invokeCallback(script, type, context);
     }
   }
@@ -189,7 +186,7 @@ class ScriptRuntime {
   Future<void> _invokeCallback(
     StoredScript script,
     ScriptEventType type,
-    _ContextMap context,
+    ScriptContext context,
   ) async {
     final callbackName = _callbackName(type);
     final export = script.document[callbackName];
@@ -197,7 +194,7 @@ class ScriptRuntime {
       return;
     }
     try {
-      await export.invoke<Object?>(<Object?>[context]);
+      await export.invoke<Object?>(<Object?>[context.toPayload()]);
     } on PythonFfiException catch (error, stackTrace) {
       await _logSink(
         'Erreur lors de l\'appel $callbackName sur ${script.descriptor.key}: $error',
@@ -228,61 +225,6 @@ class ScriptRuntime {
       case ScriptEventType.notesChanged:
         return 'on_notes_changed';
     }
-  }
-
-  _ContextMap _baseContext({required Workbook workbook}) {
-    final pages = workbook.pages
-        .map((page) => <String, Object?>{
-              'name': page.name,
-              'type': page.runtimeType.toString(),
-              'key': normaliseScriptKey(page.name),
-            })
-        .toList(growable: false);
-    return <String, Object?>{
-      'workbook': <String, Object?>{
-        'pageCount': workbook.pages.length,
-        'pages': pages,
-        'activeIndex': commandManager.activePageIndex,
-      },
-    };
-  }
-
-  _ContextMap _pageContext({
-    required WorkbookPage page,
-    required Workbook workbook,
-  }) {
-    final base = <String, Object?>{
-      'page': <String, Object?>{
-        'name': page.name,
-        'scope': page is Sheet
-            ? 'sheet'
-            : page is NotesPage
-                ? 'notes'
-                : page is MenuPage
-                    ? 'menu'
-                    : 'page',
-        'key': normaliseScriptKey(page.name),
-      },
-    };
-    if (page is Sheet) {
-      base['page'] = <String, Object?>{
-        ...base['page'] as Map<String, Object?>,
-        ..._sheetContext(page),
-      };
-    }
-    if (page is NotesPage) {
-      base['page'] = <String, Object?>{
-        ...base['page'] as Map<String, Object?>,
-        'contentLength': page.content.length,
-      };
-    }
-    return base;
-  }
-
-  Map<String, Object?> _sheetContext(Sheet sheet) {
-    return <String, Object?>{
-      ...sheet.metadata,
-    };
   }
 
   Future<StoredScript?> _ensureGlobalScript() async {
@@ -322,12 +264,4 @@ class ScriptRuntime {
   ScriptDescriptor _descriptorForPage(WorkbookPage page) {
     return ScriptDescriptor(scope: ScriptScope.page, key: _pageKeyFor(page));
   }
-}
-
-class ScriptNavigatorBinding {
-  const ScriptNavigatorBinding({
-    this.selectionStateFor,
-  });
-
-  final SheetSelectionState? Function(String pageKey)? selectionStateFor;
 }
