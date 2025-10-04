@@ -27,7 +27,7 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
         child: SizedBox(
           width: _kWorkspaceToggleTabWidth,
           child: Align(
-            alignment: Alignment.centerRight,
+            alignment: Alignment.topRight,
             child: Material(
               color: Colors.transparent,
               child: InkWell(
