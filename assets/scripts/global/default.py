@@ -1,16 +1,16 @@
 """Script global d'exemple pour Optima."""
 
 
-def on_workbook_open(context):
+def on_workbook_open(ctx):
     """Log l'ouverture du classeur."""
-    workbook = context.get("workbook", {})
+    workbook = ctx.get("workbook", {})
     page_count = workbook.get("pageCount", 0)
     _log(f"Classeur chargé ({page_count} page(s)).")
 
 
-def on_page_enter(context):
+def on_page_enter(ctx):
     """Annoncer la page active."""
-    page = context.get("page", {})
+    page = ctx.get("page", {})
     _log(f"Ouverture de {page.get('name')}")
 
 

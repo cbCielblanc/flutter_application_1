@@ -108,30 +108,24 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
       CustomAction(
         id: 'log',
         label: 'Ajouter un log',
-        template: _normaliseCustomActionTemplate('''
-  - log:
-      message: "Votre message"
-'''),
+        template: _normaliseCustomActionTemplate(
+          'print("[OptimaScript] Votre message")',
+        ),
       ),
       CustomAction(
-        id: 'set_cell',
-        label: 'Ecrire une cellule',
-        template: _normaliseCustomActionTemplate('''
-  - set_cell:
-      cell: A1
-      value: "=B1"
-'''),
+        id: 'if_event',
+        label: 'Tester un événement',
+        template: _normaliseCustomActionTemplate(
+          'if ctx.get("event") == "workbook.open":\n    pass',
+        ),
       ),
       CustomAction(
-        id: 'run_snippet',
-        label: 'Executer un snippet',
-        template: _normaliseCustomActionTemplate('''
-  - run_snippet:
-      module: shared/default
-      name: votre_snippet
-      args:
-        target: A1
-'''),
+        id: 'for_loop',
+        label: 'Boucle sur les pages',
+        template: _normaliseCustomActionTemplate(
+          'for index, page in enumerate(ctx.get("workbook", {}).get("pages", []), start=1):\n'
+          '    print(f"{index}. {page.get(\'name\')}")',
+        ),
       ),
     ]);
   }
@@ -254,7 +248,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
 
     final controller = CodeController(
       language: python,
-      params: const EditorParams(tabSpaces: 2),
+      params: const EditorParams(tabSpaces: 4),
     );
     final tab = ScriptEditorTab(
       descriptor: descriptor,
@@ -428,11 +422,71 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
     }
     setState(() {
       _scriptEditorLoading = true;
-      _scriptEditorStatus = 'Enregistrement du script...';
+      _scriptEditorStatus = 'Validation du script...';
+      activeTab.status = _scriptEditorStatus;
     });
+    final source = activeTab.controller.text;
+    ScriptDocument? validated;
+    var validationSkipped = false;
     try {
-      final stored =
-          await _runtime.storage.saveScript(descriptor, activeTab.controller.text);
+      try {
+        validated = await _runtime.storage.validateScript(
+          descriptor: descriptor,
+          source: source,
+        );
+      } on PythonFfiException catch (error) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          final message =
+              'Erreur Python lors de la validation: $error';
+          _scriptEditorStatus = message;
+          activeTab.status = message;
+        });
+        return;
+      } on ScriptValidationException catch (error) {
+        if (!mounted) {
+          return;
+        }
+        final message = error.allowSave
+            ? '${error.message}. Validation ignorée; enregistrement en cours.'
+            : error.message;
+        setState(() {
+          _scriptEditorStatus = message;
+          activeTab.status = message;
+        });
+        if (!error.allowSave) {
+          return;
+        }
+        validationSkipped = true;
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+        final message = "Erreur lors de la validation du script: $error";
+        setState(() {
+          _scriptEditorStatus = message;
+          activeTab.status = message;
+        });
+        return;
+      }
+
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _scriptEditorStatus = validationSkipped
+            ? 'Validation indisponible. Enregistrement du script...'
+            : 'Enregistrement du script...';
+        activeTab.status = _scriptEditorStatus;
+      });
+
+      final stored = await _runtime.storage.saveScript(
+        descriptor,
+        source,
+        validatedDocument: validated,
+      );
       await _runtime.reload();
       await _refreshScriptLibrary(silent: true);
       if (!mounted) {
@@ -541,26 +595,82 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
   String _defaultScriptTemplate(ScriptDescriptor descriptor) {
     switch (descriptor.scope) {
       case ScriptScope.global:
-        return '"""Module global Optima."""\n\n'
-            'def on_workbook_open(context):\n'
-            '    """Déclenché lors de l\'ouverture du classeur."""\n'
-            '    pass\n\n'
-            'def on_page_enter(context):\n'
-            '    """Déclenché lorsqu\'une page devient active."""\n'
-            '    pass\n';
+        return '''"""Module global Optima."""
+
+def on_workbook_open(ctx):
+    """Déclenché lors de l'ouverture du classeur."""
+    workbook = ctx.get("workbook", {})
+    page_count = workbook.get("pageCount", 0)
+    print(f"[OptimaScript] Classeur chargé ({page_count} page(s)).")
+
+def on_workbook_close(ctx):
+    """Déclenché lors de la fermeture du classeur."""
+    pass
+
+def on_page_enter(ctx):
+    """Déclenché lorsqu'une page devient active."""
+    page = ctx.get("page", {})
+    print(f"[OptimaScript] Page active: {page.get('name')}")
+
+def on_page_leave(ctx):
+    """Déclenché lorsqu'une page perd le focus."""
+    pass
+
+def on_cell_changed(ctx):
+    """Réagit à la modification d'une cellule."""
+    cell = ctx.get("cell", {})
+    change = ctx.get("change", {})
+    print(f"[OptimaScript] {cell.get('label')} -> {change.get('newRaw')!r}")
+
+def on_selection_changed(ctx):
+    """Réagit à la modification de la sélection."""
+    selection = ctx.get("selection", {})
+    print(f"[OptimaScript] Sélection: {selection.get('current')}")
+
+def on_notes_changed(ctx):
+    """Réagit à la modification du contenu des notes."""
+    notes = ctx.get("notes", {})
+    print(f"[OptimaScript] Notes mises à jour: {len(notes.get('content') or '')} caractère(s).")
+
+''';
       case ScriptScope.page:
-        return '"""Module spécifique à une page."""\n\n'
-            'def on_page_enter(context):\n'
-            '    """Personnalise l\'entrée sur la page."""\n'
-            '    pass\n\n'
-            'def on_cell_changed(context):\n'
-            '    """Réagit à la modification d\'une cellule."""\n'
-            '    pass\n';
+        return '''"""Module spécifique à une page."""
+
+def on_page_enter(ctx):
+    """Personnalise l'entrée sur la page."""
+    page = ctx.get("page", {})
+    print(f"[OptimaScript] Bienvenue sur {page.get('name')}")
+
+def on_page_leave(ctx):
+    """Nettoie lorsque la page perd le focus."""
+    pass
+
+def on_cell_changed(ctx):
+    """Réagit à la modification d'une cellule."""
+    cell = ctx.get("cell", {})
+    change = ctx.get("change", {})
+    print(f"[OptimaScript] {cell.get('label')} -> {change.get('newRaw')!r}")
+
+def on_selection_changed(ctx):
+    """Réagit à la modification de la sélection."""
+    selection = ctx.get("selection", {})
+    print(f"[OptimaScript] Sélection: {selection.get('current')}")
+
+def on_notes_changed(ctx):
+    """Réagit à la modification du contenu des notes."""
+    notes = ctx.get("notes", {})
+    print(f"[OptimaScript] Notes mises à jour: {len(notes.get('content') or '')} caractère(s).")
+
+''';
       case ScriptScope.shared:
-        return '"""Utilitaires Python partagés."""\n\n'
-            'def helper(context, /, **kwargs):\n'
-            '    """Fonction de démonstration accessible depuis d\'autres modules."""\n'
-            '    pass\n';
+        return '''"""Utilitaires Python partagés."""
+
+def helper(ctx, message: str) -> None:
+    """Fonction de démonstration accessible depuis d'autres modules."""
+    page = ctx.get("page", {})
+    print(f"[OptimaScript][{page.get('name')}] {message}")
+
+''';
     }
   }
 

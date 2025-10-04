@@ -4,7 +4,9 @@ import 'package:code_text_field/code_text_field.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:highlight/languages/python.dart';
+import 'package:python_ffi_dart/python_ffi_dart.dart';
+
+import '../highlight/python_language.dart';
 
 import '../../application/commands/add_notes_page_command.dart';
 import '../../application/commands/add_sheet_command.dart';
