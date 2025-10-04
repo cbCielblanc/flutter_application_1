@@ -285,7 +285,16 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                FormulaBar(selectionState: selectionState),
+                                FormulaBar(
+                                  selectionState: selectionState,
+                                  onCommitAndAdvance: () {
+                                    selectionState.moveSelection(
+                                      rowCount: page.rowCount,
+                                      columnCount: page.columnCount,
+                                      rowDelta: 1,
+                                    );
+                                  },
+                                ),
                                 const SizedBox(height: 16),
                                 Expanded(
                                   child: DecoratedBox(
