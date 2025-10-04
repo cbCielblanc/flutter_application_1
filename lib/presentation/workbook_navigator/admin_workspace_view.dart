@@ -65,7 +65,7 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
           ),
         ),
         _ScriptEditorOverlayHost(
-          isActive: _scriptEditorFullscreen,
+          isActive: _adminWorkspaceVisible && _scriptEditorFullscreen,
           overlayBuilder: overlayBuilder,
         ),
       ],
@@ -221,6 +221,15 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
                   style: theme.textTheme.titleMedium,
                 ),
               ),
+              TextButton.icon(
+                onPressed: () {
+                  _handleExitScriptEditorFullscreen();
+                  _toggleAdminWorkspaceVisibility();
+                },
+                icon: const Icon(Icons.visibility_off_outlined),
+                label: const Text('Masquer'),
+              ),
+              const SizedBox(width: 12),
               ...buildActionButtons(includeFullscreenToggle: true),
             ],
           ),
@@ -271,6 +280,15 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
                               style: theme.textTheme.titleMedium,
                             ),
                           ),
+                          TextButton.icon(
+                            onPressed: () {
+                              _handleExitScriptEditorFullscreen();
+                              _toggleAdminWorkspaceVisibility();
+                            },
+                            icon: const Icon(Icons.visibility_off_outlined),
+                            label: const Text('Masquer'),
+                          ),
+                          const SizedBox(width: 12),
                           FilledButton.icon(
                             onPressed: _handleExitScriptEditorFullscreen,
                             icon: const Icon(Icons.fullscreen_exit),
