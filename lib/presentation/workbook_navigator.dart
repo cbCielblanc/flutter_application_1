@@ -44,6 +44,46 @@ class CustomAction {
   final String template;
 }
 
+class _ScriptTreeNode {
+  const _ScriptTreeNode({
+    required this.id,
+    required this.label,
+    this.subtitle,
+    this.icon,
+    this.descriptor,
+    this.pageName,
+    this.rawSharedKey,
+    this.hasContent = false,
+    this.emptyLabel,
+    this.isGroup = false,
+    this.children = const <_ScriptTreeNode>[],
+  });
+
+  final String id;
+  final String label;
+  final String? subtitle;
+  final IconData? icon;
+  final ScriptDescriptor? descriptor;
+  final String? pageName;
+  final String? rawSharedKey;
+  final bool hasContent;
+  final String? emptyLabel;
+  final bool isGroup;
+  final List<_ScriptTreeNode> children;
+}
+
+class _ScriptTreeBuildResult {
+  _ScriptTreeBuildResult({
+    required this.nodes,
+    required this.parents,
+    required this.expandableIds,
+  });
+
+  final List<_ScriptTreeNode> nodes;
+  final Map<String, String?> parents;
+  final Set<String> expandableIds;
+}
+
 class WorkbookNavigator extends StatefulWidget {
   const WorkbookNavigator({
     super.key,
@@ -90,6 +130,11 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   final List<StoredScript> _scriptLibrary = <StoredScript>[];
   bool _scriptLibraryLoading = false;
   String? _scriptLibraryError;
+  final List<_ScriptTreeNode> _scriptTreeNodes = <_ScriptTreeNode>[];
+  final Map<String, bool> _scriptTreeExpanded = <String, bool>{};
+  final Map<String, String?> _scriptTreeParents = <String, String?>{};
+  final Set<String> _scriptTreeExpandableNodes = <String>{};
+  String? _activeScriptNodeId;
 
   WorkbookCommandManager get _manager => widget.commandManager;
   ScriptRuntime get _runtime => widget.scriptRuntime;
@@ -123,6 +168,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       initialPage: initialPageIndex < 0 ? 0 : initialPageIndex,
     );
     _manager.addListener(_handleManagerChanged);
+    _updateScriptTree(notify: false);
     if (_isAdmin) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -154,6 +200,10 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
         unawaited(_refreshScriptLibrary());
         unawaited(_loadScriptEditor());
       });
+      _updateScriptTree();
+    }
+    if (oldWidget.isAdmin && !widget.isAdmin) {
+      _updateScriptTree();
     }
   }
 
@@ -204,6 +254,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     }
     if (_isAdmin) {
       unawaited(_synchronisePageScriptsWithWorkbook(workbook));
+      _updateScriptTree();
     }
   }
 
@@ -576,6 +627,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
         _scriptLibraryLoading = false;
         _scriptLibraryError = null;
       });
+      _updateScriptTree();
     } catch (error) {
       if (!mounted) {
         return;
@@ -584,7 +636,339 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
         _scriptLibraryLoading = false;
         _scriptLibraryError = 'Erreur de chargement: $error';
       });
+      _updateScriptTree();
     }
+  }
+
+  void _updateScriptTree({bool notify = true}) {
+    if (!_isAdmin) {
+      void clearData() {
+        _scriptTreeNodes.clear();
+        _scriptTreeParents.clear();
+        _scriptTreeExpandableNodes.clear();
+        _scriptTreeExpanded.clear();
+        _activeScriptNodeId = null;
+      }
+
+      if (notify) {
+        setState(clearData);
+      } else {
+        clearData();
+      }
+      return;
+    }
+
+    final result = _computeScriptTree();
+    final descriptor = _descriptorForSelection();
+    String? activeNodeId = _activeScriptNodeId;
+    final newExpanded = <String, bool>{};
+    for (final id in result.expandableIds) {
+      if (_scriptTreeExpanded.containsKey(id)) {
+        newExpanded[id] = _scriptTreeExpanded[id]!;
+      } else {
+        newExpanded[id] = true;
+      }
+    }
+
+    if (descriptor != null) {
+      final matchedId = _findNodeIdForDescriptor(result.nodes, descriptor);
+      activeNodeId = matchedId;
+      if (matchedId != null) {
+        _expandAncestorsForId(
+          matchedId,
+          newExpanded,
+          parents: result.parents,
+        );
+      }
+    } else {
+      activeNodeId = null;
+    }
+
+    void apply() {
+      _scriptTreeNodes
+        ..clear()
+        ..addAll(result.nodes);
+      _scriptTreeParents
+        ..clear()
+        ..addAll(result.parents);
+      _scriptTreeExpandableNodes
+        ..clear()
+        ..addAll(result.expandableIds);
+      _scriptTreeExpanded
+        ..clear()
+        ..addAll(newExpanded);
+      _activeScriptNodeId = activeNodeId;
+    }
+
+    if (notify) {
+      setState(apply);
+    } else {
+      apply();
+    }
+  }
+
+  _ScriptTreeBuildResult _computeScriptTree() {
+    final workbook = _manager.workbook;
+    final pages = workbook.pages;
+    final sharedScripts = _scriptLibrary
+        .where((script) => script.descriptor.scope == ScriptScope.shared)
+        .toList()
+      ..sort((a, b) => a.descriptor.key.compareTo(b.descriptor.key));
+
+    final globalDescriptor =
+        const ScriptDescriptor(scope: ScriptScope.global, key: 'default');
+    final globalHasScript = _hasScriptDescriptor(globalDescriptor);
+
+    final nodes = <_ScriptTreeNode>[
+      _ScriptTreeNode(
+        id: 'group:workbook',
+        label: 'Classeur',
+        isGroup: true,
+        children: [
+          _ScriptTreeNode(
+            id: 'script:global',
+            label: 'Script global',
+            subtitle: globalHasScript
+                ? 'Script existant'
+                : 'Déclenché pour tout le classeur',
+            icon: Icons.language,
+            descriptor: globalDescriptor,
+            hasContent: globalHasScript,
+          ),
+        ],
+      ),
+      _ScriptTreeNode(
+        id: 'group:pages',
+        label: 'Pages',
+        isGroup: true,
+        emptyLabel: 'Aucune page disponible.',
+        children: pages
+            .map((page) {
+              final descriptor = ScriptDescriptor(
+                scope: ScriptScope.page,
+                key: normaliseScriptKey(page.name),
+              );
+              final hasScript = _hasScriptDescriptor(descriptor);
+              return _ScriptTreeNode(
+                id: 'page:${descriptor.key}',
+                label: page.name,
+                subtitle: hasScript
+                    ? 'Script existant'
+                    : 'Créer un script pour cette page',
+                icon: Icons.grid_on_outlined,
+                descriptor: descriptor,
+                pageName: page.name,
+                hasContent: hasScript,
+              );
+            })
+            .toList(growable: false),
+      ),
+      _ScriptTreeNode(
+        id: 'group:shared',
+        label: 'Modules partagés',
+        isGroup: true,
+        emptyLabel: 'Créez un module pour factoriser vos snippets.',
+        children: sharedScripts
+            .map((script) {
+              final descriptor = script.descriptor;
+              return _ScriptTreeNode(
+                id: 'shared:${descriptor.key}',
+                label: descriptor.key,
+                subtitle: 'Module partagé',
+                icon: Icons.extension,
+                descriptor: descriptor,
+                rawSharedKey: descriptor.key,
+                hasContent: true,
+              );
+            })
+            .toList(growable: false),
+      ),
+    ];
+
+    final parents = <String, String?>{};
+    final expandableIds = <String>{};
+
+    void registerNodes(List<_ScriptTreeNode> list, {String? parent}) {
+      for (final node in list) {
+        parents[node.id] = parent;
+        if (node.isGroup) {
+          expandableIds.add(node.id);
+        }
+        if (node.children.isNotEmpty) {
+          registerNodes(node.children, parent: node.id);
+        }
+      }
+    }
+
+    registerNodes(nodes);
+
+    return _ScriptTreeBuildResult(
+      nodes: nodes,
+      parents: parents,
+      expandableIds: expandableIds,
+    );
+  }
+
+  void _expandAncestorsForId(
+    String nodeId,
+    Map<String, bool> expanded, {
+    Map<String, String?>? parents,
+  }) {
+    final map = parents ?? _scriptTreeParents;
+    var current = map[nodeId];
+    while (current != null) {
+      expanded[current] = true;
+      current = map[current];
+    }
+  }
+
+  String? _findNodeIdForDescriptor(
+    List<_ScriptTreeNode> nodes,
+    ScriptDescriptor descriptor,
+  ) {
+    for (final node in nodes) {
+      final nodeDescriptor = node.descriptor;
+      if (nodeDescriptor != null &&
+          nodeDescriptor.scope == descriptor.scope &&
+          nodeDescriptor.key == descriptor.key) {
+        return node.id;
+      }
+      final childResult = _findNodeIdForDescriptor(node.children, descriptor);
+      if (childResult != null) {
+        return childResult;
+      }
+    }
+    return null;
+  }
+
+  void _toggleScriptTreeExpansion() {
+    if (_scriptTreeExpandableNodes.isEmpty) {
+      return;
+    }
+    final hasCollapsed = _scriptTreeExpandableNodes
+        .any((id) => !(_scriptTreeExpanded[id] ?? true));
+    final target = hasCollapsed;
+    setState(() {
+      for (final id in _scriptTreeExpandableNodes) {
+        _scriptTreeExpanded[id] = target;
+      }
+      if (!target && _activeScriptNodeId != null) {
+        _expandAncestorsForId(_activeScriptNodeId!, _scriptTreeExpanded);
+      }
+    });
+  }
+
+  void _handleToggleScriptGroup(String nodeId) {
+    final current = _scriptTreeExpanded[nodeId] ?? true;
+    setState(() {
+      _scriptTreeExpanded[nodeId] = !current;
+    });
+  }
+
+  Widget _buildScriptTreeNode(
+    BuildContext context,
+    _ScriptTreeNode node, {
+    int depth = 0,
+  }) {
+    final theme = Theme.of(context);
+    final padding = EdgeInsets.only(left: 16.0 * depth + 16, right: 16);
+
+    if (node.isGroup) {
+      final expanded = _scriptTreeExpanded[node.id] ?? true;
+      final children = node.children.isNotEmpty
+          ? node.children
+              .map(
+                (child) => _buildScriptTreeNode(
+                  context,
+                  child,
+                  depth: depth + 1,
+                ),
+              )
+              .toList(growable: false)
+          : <Widget>[];
+      final placeholder = node.emptyLabel;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            contentPadding: padding,
+            title: Text(
+              node.label,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            trailing: Icon(expanded ? Icons.expand_less : Icons.expand_more),
+            onTap: () => _handleToggleScriptGroup(node.id),
+          ),
+          ClipRect(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topCenter,
+              child: expanded
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (children.isNotEmpty) ...children,
+                        if (children.isEmpty && placeholder != null)
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              16.0 * (depth + 1) + 16,
+                              4,
+                              16,
+                              12,
+                            ),
+                            child: Text(
+                              placeholder,
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ),
+        ],
+      );
+    }
+
+    final isSelected = _activeScriptNodeId == node.id;
+
+    return ListTile(
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      contentPadding: padding,
+      leading: node.icon != null ? Icon(node.icon, size: 20) : null,
+      title: Text(node.label),
+      subtitle: node.subtitle != null
+          ? Text(
+              node.subtitle!,
+              style: theme.textTheme.bodySmall,
+            )
+          : null,
+      trailing: node.hasContent
+          ? Icon(
+              Icons.check_circle,
+              size: 16,
+              color: theme.colorScheme.primary,
+            )
+          : null,
+      selected: isSelected,
+      selectedTileColor: theme.colorScheme.primary.withOpacity(0.08),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      onTap: node.descriptor == null
+          ? null
+          : () => _handleSelectScriptDescriptor(
+                node.descriptor!,
+                pageName: node.pageName,
+                rawSharedKey: node.rawSharedKey,
+                nodeId: node.id,
+              ),
+    );
   }
 
   ScriptDescriptor? _descriptorForSelection() {
@@ -620,7 +1004,14 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     ScriptDescriptor descriptor, {
     String? pageName,
     String? rawSharedKey,
+    String? nodeId,
   }) async {
+    final resolvedNodeId =
+        nodeId ?? _findNodeIdForDescriptor(_scriptTreeNodes, descriptor);
+    final expanded = Map<String, bool>.from(_scriptTreeExpanded);
+    if (resolvedNodeId != null) {
+      _expandAncestorsForId(resolvedNodeId, expanded);
+    }
     setState(() {
       _scriptEditorScope = descriptor.scope;
       switch (descriptor.scope) {
@@ -650,6 +1041,10 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
           _scriptSharedKey = normaliseScriptKey(rawValue);
           break;
       }
+      _scriptTreeExpanded
+        ..clear()
+        ..addAll(expanded);
+      _activeScriptNodeId = resolvedNodeId;
     });
     await _loadScriptEditor();
   }
@@ -1150,11 +1545,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
               if (!_scriptEditorFullscreen) ...[
                 SizedBox(
                   width: 240,
-                  child: _buildScriptLibraryPanel(
-                    context: context,
-                    pages: pages,
-                    activeDescriptor: activeDescriptor,
-                  ),
+                  child: _buildScriptLibraryPanel(context),
                 ),
                 const VerticalDivider(width: 1),
               ],
@@ -1207,11 +1598,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
                       children: [
                         SizedBox(
                           width: 240,
-                          child: _buildScriptLibraryPanel(
-                            context: context,
-                            pages: pages,
-                            activeDescriptor: activeDescriptor,
-                          ),
+                          child: _buildScriptLibraryPanel(context),
                         ),
                         const VerticalDivider(width: 1),
                         Expanded(
@@ -1339,125 +1726,60 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   }
 
 
-  Widget _buildScriptLibraryPanel({
-    required BuildContext context,
-    required List<WorkbookPage> pages,
-    required ScriptDescriptor? activeDescriptor,
-  }) {
+  Widget _buildScriptLibraryPanel(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final sharedScripts = _scriptLibrary
-        .where((script) => script.descriptor.scope == ScriptScope.shared)
-        .toList()
-      ..sort((a, b) => a.descriptor.key.compareTo(b.descriptor.key));
-
-    final globalDescriptor =
-        const ScriptDescriptor(scope: ScriptScope.global, key: 'default');
-    final globalHasScript = _hasScriptDescriptor(globalDescriptor);
+    final canToggle = _scriptTreeExpandableNodes.isNotEmpty;
+    final hasCollapsed = _scriptTreeExpandableNodes
+        .any((id) => !(_scriptTreeExpanded[id] ?? true));
+    final toggleLabel = hasCollapsed ? 'Tout déplier' : 'Tout replier';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: Text('Bibliothèque de scripts', style: theme.textTheme.titleSmall),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Bibliothèque de scripts',
+                  style: theme.textTheme.titleSmall,
+                ),
+              ),
+              if (canToggle)
+                TextButton.icon(
+                  onPressed: _toggleScriptTreeExpansion,
+                  icon: Icon(hasCollapsed ? Icons.unfold_more : Icons.unfold_less),
+                  label: Text(toggleLabel),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
+            ],
+          ),
         ),
         Expanded(
           child: _scriptLibraryLoading
               ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-              : ListView(
+              : ListView.separated(
                   padding: const EdgeInsets.only(bottom: 12),
-                  children: [
-                    _buildScriptGroupHeader(context, 'Classeur'),
-                    _buildScriptLibraryTile(
-                      context: context,
-                      icon: Icons.language,
-                      label: 'Script global',
-                      subtitle: globalHasScript
-                          ? 'Script existant'
-                          : 'Déclenché pour tout le classeur',
-                      selected: activeDescriptor?.scope == ScriptScope.global,
-                      hasContent: globalHasScript,
-                      onTap: () =>
-                          _handleSelectScriptDescriptor(globalDescriptor),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildScriptGroupHeader(context, 'Pages'),
-                    if (pages.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        child: Text(
-                          'Aucune page disponible.',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ),
-                    ...pages.map((page) {
-                      final descriptor = ScriptDescriptor(
-                        scope: ScriptScope.page,
-                        key: normaliseScriptKey(page.name),
-                      );
-                      final hasScript = _hasScriptDescriptor(descriptor);
-                      final selected =
-                          activeDescriptor?.scope == ScriptScope.page &&
-                              activeDescriptor?.key == descriptor.key;
-                      return _buildScriptLibraryTile(
-                        context: context,
-                        icon: Icons.grid_on_outlined,
-                        label: page.name,
-                        subtitle: hasScript
-                            ? 'Script existant'
-                            : 'Créer un script pour cette page',
-                        selected: selected,
-                        hasContent: hasScript,
-                        onTap: () => _handleSelectScriptDescriptor(
-                          descriptor,
-                          pageName: page.name,
+                  itemCount: _scriptTreeNodes.length + 1,
+                  separatorBuilder: (context, index) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    if (index == _scriptTreeNodes.length) {
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                        child: OutlinedButton.icon(
+                          onPressed: () => _promptNewSharedModule(context),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Nouveau module partagé'),
                         ),
                       );
-                    }),
-                    const SizedBox(height: 12),
-                    _buildScriptGroupHeader(context, 'Modules partagés'),
-                    if (sharedScripts.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        child: Text(
-                          'Créez un module pour factoriser vos snippets.',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ),
-                    ...sharedScripts.map((script) {
-                      final descriptor = script.descriptor;
-                      final selected =
-                          activeDescriptor?.scope == ScriptScope.shared &&
-                              activeDescriptor?.key == descriptor.key;
-                      return _buildScriptLibraryTile(
-                        context: context,
-                        icon: Icons.extension,
-                        label: descriptor.key,
-                        subtitle: 'Module partagé',
-                        selected: selected,
-                        hasContent: true,
-                        onTap: () => _handleSelectScriptDescriptor(
-                          descriptor,
-                          rawSharedKey: descriptor.key,
-                        ),
-                      );
-                    }),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                      child: OutlinedButton.icon(
-                        onPressed: () => _promptNewSharedModule(context),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Nouveau module partagé'),
-                      ),
-                    ),
-                  ],
+                    }
+                    final node = _scriptTreeNodes[index];
+                    return _buildScriptTreeNode(context, node);
+                  },
                 ),
         ),
         if (_scriptLibraryError != null)
@@ -2010,58 +2332,3 @@ class _ScriptEditorOverlayHostState extends State<_ScriptEditorOverlayHost> {
   }
 }
 
-Widget _buildScriptGroupHeader(BuildContext context, String title) {
-  final theme = Theme.of(context);
-  return Padding(
-    padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-    child: Text(
-      title,
-      style: theme.textTheme.labelLarge?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: theme.colorScheme.primary,
-      ),
-    ),
-  );
-}
-
-Widget _buildScriptLibraryTile({
-  required BuildContext context,
-  required IconData icon,
-  required String label,
-  required String subtitle,
-  required VoidCallback onTap,
-  required bool selected,
-  required bool hasContent,
-}) {
-  final theme = Theme.of(context);
-  final colorScheme = theme.colorScheme;
-  final foreground =
-      selected ? colorScheme.primary : theme.textTheme.bodyMedium?.color;
-  final background =
-      selected ? colorScheme.primary.withOpacity(0.08) : Colors.transparent;
-
-  return ListTile(
-    dense: true,
-    onTap: onTap,
-    selected: selected,
-    selectedTileColor: background,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-    leading: Icon(icon, color: foreground, size: 20),
-    title: Text(
-      label,
-      style: theme.textTheme.bodyMedium?.copyWith(
-        color: foreground,
-        fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-      ),
-    ),
-    subtitle: Text(
-      subtitle,
-      style: theme.textTheme.bodySmall,
-    ),
-    trailing: Icon(
-      hasContent ? Icons.check_circle : Icons.radio_button_unchecked,
-      size: 16,
-      color: hasContent ? colorScheme.primary : theme.disabledColor,
-    ),
-  );
-}
