@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:python_ffi_dart/python_ffi_dart.dart';
 
 import 'models.dart';
 import 'python/python_script_engine.dart';
@@ -50,6 +51,7 @@ class ScriptStorage {
 
   Directory? _writeDirectory;
   List<String>? _assetScriptPaths;
+  final Map<String, _CachedDocument> _documentCache = <String, _CachedDocument>{};
 
   bool get supportsFileSystem => _supportsFileSystem;
 
@@ -289,34 +291,83 @@ class ScriptStorage {
     required ScriptDescriptor descriptor,
     required String source,
   }) async {
+    final cacheKey = _cacheKey(descriptor);
+    final signature = source.hashCode;
+    final cached = _documentCache[cacheKey];
+    if (cached != null && cached.matches(signature, source)) {
+      return cached.document;
+    }
+
+    PythonScriptModule module;
+    Map<String, PythonScriptExport> exports;
+
     try {
-      final module = await _engine.loadModule(
+      module = await _engine.loadModule(
         id: descriptor.key,
         scope: descriptor.scope,
         source: source,
       );
-      final exports = Map<String, PythonScriptExport>.from(module.exports);
-      final name = descriptor.key;
-      return ScriptDocument(
-        id: descriptor.key,
-        name: name,
-        scope: descriptor.scope,
-        module: module,
-        exports: exports,
-      );
+      exports = Map<String, PythonScriptExport>.from(module.exports);
     } on UnsupportedError catch (error) {
       debugPrint('Interpreteur Python indisponible: $error');
-      final module = PythonScriptModule.empty(
+      module = PythonScriptModule.empty(
         moduleName: descriptor.key,
         scope: descriptor.scope,
       );
-      return ScriptDocument(
-        id: descriptor.key,
-        name: descriptor.key,
-        scope: descriptor.scope,
-        module: module,
-        exports: const <String, PythonScriptExport>{},
+      exports = const <String, PythonScriptExport>{};
+    } on PythonFfiException catch (error, stackTrace) {
+      debugPrint(
+        'Erreur lors de l\'import du module ${descriptor.fileName}: $error\n$stackTrace',
       );
+      module = PythonScriptModule.empty(
+        moduleName: descriptor.key,
+        scope: descriptor.scope,
+      );
+      exports = const <String, PythonScriptExport>{};
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Erreur inattendue lors du chargement du module ${descriptor.fileName}: '
+        '$error\n$stackTrace',
+      );
+      module = PythonScriptModule.empty(
+        moduleName: descriptor.key,
+        scope: descriptor.scope,
+      );
+      exports = const <String, PythonScriptExport>{};
     }
+
+    final document = ScriptDocument(
+      id: descriptor.key,
+      name: descriptor.key,
+      scope: descriptor.scope,
+      module: module,
+      exports: exports,
+    );
+    _documentCache[cacheKey] = _CachedDocument(
+      signature: signature,
+      source: source,
+      document: document,
+    );
+    return document;
+  }
+
+  String _cacheKey(ScriptDescriptor descriptor) =>
+      '${descriptor.scope.name}:${descriptor.key}';
+}
+
+class _CachedDocument {
+  const _CachedDocument({
+    required this.signature,
+    required this.source,
+    required this.document,
+  });
+
+  final int signature;
+  final String source;
+  final ScriptDocument document;
+
+  bool matches(int otherSignature, String otherSource) {
+    return signature == otherSignature && source == otherSource;
   }
 }
+
