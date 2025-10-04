@@ -284,7 +284,6 @@ class ScriptStorage {
         return null;
     }
   }
-}
 
   Future<ScriptDocument> _loadDocument({
     required ScriptDescriptor descriptor,
@@ -306,7 +305,7 @@ class ScriptStorage {
         exports: exports,
       );
     } on UnsupportedError catch (error) {
-      debugPrint('Interpréteur Python indisponible: $error');
+      debugPrint('Interpreteur Python indisponible: $error');
       final module = PythonScriptModule.empty(
         moduleName: descriptor.key,
         scope: descriptor.scope,
@@ -320,3 +319,4 @@ class ScriptStorage {
       );
     }
   }
+}

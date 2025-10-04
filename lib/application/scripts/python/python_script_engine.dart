@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:python_ffi/python_ffi_dart.dart';
+import 'package:python_ffi_dart/python_ffi_dart.dart';
 
 import '../scope.dart';
 
