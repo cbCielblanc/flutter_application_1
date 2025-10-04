@@ -253,7 +253,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
     }
 
     final controller = CodeController(
-      language: yaml,
+      language: python,
       params: const EditorParams(tabSpaces: 2),
     );
     final tab = ScriptEditorTab(
@@ -541,30 +541,26 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
   String _defaultScriptTemplate(ScriptDescriptor descriptor) {
     switch (descriptor.scope) {
       case ScriptScope.global:
-        return 'name: Global Script\n'
-            'scope: global\n'
-            'handlers:\n'
-            '  - event: workbook.open\n'
-            '    actions:\n'
-            '      - log:\n'
-            '          message: "Classeur ouvert"\n';
+        return '"""Module global Optima."""\n\n'
+            'def on_workbook_open(context):\n'
+            '    """Déclenché lors de l\'ouverture du classeur."""\n'
+            '    pass\n\n'
+            'def on_page_enter(context):\n'
+            '    """Déclenché lorsqu\'une page devient active."""\n'
+            '    pass\n';
       case ScriptScope.page:
-        return 'name: Page Script\n'
-            'scope: page\n'
-            'handlers:\n'
-            '  - event: page.enter\n'
-            '    actions:\n'
-            '      - log:\n'
-            '          message: "Bienvenue sur {{page.name}}"\n';
+        return '"""Module spécifique à une page."""\n\n'
+            'def on_page_enter(context):\n'
+            '    """Personnalise l\'entrée sur la page."""\n'
+            '    pass\n\n'
+            'def on_cell_changed(context):\n'
+            '    """Réagit à la modification d\'une cellule."""\n'
+            '    pass\n';
       case ScriptScope.shared:
-        return 'name: Module partage\n'
-            'scope: shared\n'
-            'snippets:\n'
-            '  exemple:\n'
-            '    description: Exemple de snippet\n'
-            '    actions:\n'
-            '      - log:\n'
-            '          message: "Execution du snippet"\n';
+        return '"""Utilitaires Python partagés."""\n\n'
+            'def helper(context, /, **kwargs):\n'
+            '    """Fonction de démonstration accessible depuis d\'autres modules."""\n'
+            '    pass\n';
     }
   }
 
