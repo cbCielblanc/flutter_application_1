@@ -1,0 +1,43 @@
+import 'dart:async';
+
+import 'package:code_text_field/code_text_field.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:highlight/languages/yaml.dart';
+
+import '../../application/commands/add_notes_page_command.dart';
+import '../../application/commands/add_sheet_command.dart';
+import '../../application/commands/command_utils.dart';
+import '../../application/commands/remove_notes_page_command.dart';
+import '../../application/commands/remove_sheet_command.dart';
+import '../../application/commands/workbook_command_manager.dart';
+import '../../application/scripts/models.dart';
+import '../../application/scripts/runtime.dart';
+import '../../application/scripts/storage.dart';
+import '../../domain/cell.dart';
+import '../../domain/menu_page.dart';
+import '../../domain/notes_page.dart';
+import '../../domain/sheet.dart';
+import '../../domain/workbook.dart';
+import '../../domain/workbook_page.dart';
+import '../../state/sheet_selection_state.dart';
+import '../themes/highlight_themes.dart';
+import '../widgets/command_ribbon.dart';
+import '../widgets/formula_bar.dart';
+import '../widgets/menu_page_view.dart';
+import '../widgets/notes_page_view.dart';
+import '../widgets/sheet_grid.dart';
+import '../widgets/top_aligned_code_field.dart';
+import '../widgets/workbook_page_tab_bar.dart';
+import '../workbook_page_display.dart';
+
+part 'models.dart';
+part 'workbook_pages_logic.dart';
+part 'script_tree_logic.dart';
+part 'script_editor_logic.dart';
+part 'script_library_view.dart';
+part 'script_editor_view.dart';
+part 'admin_workspace_view.dart';
+part 'script_editor_overlay_host.dart';
+part 'workbook_navigator_state.dart';
