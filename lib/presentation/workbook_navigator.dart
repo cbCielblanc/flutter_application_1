@@ -84,6 +84,27 @@ class _ScriptTreeBuildResult {
   final Set<String> expandableIds;
 }
 
+class ScriptEditorTab {
+  ScriptEditorTab({
+    required this.descriptor,
+    required this.controller,
+    this.pageName,
+    this.rawSharedKey,
+    this.isDirty = false,
+    this.isMutable = true,
+    this.status,
+  });
+
+  ScriptDescriptor descriptor;
+  final CodeController controller;
+  bool isDirty;
+  bool isMutable;
+  String? status;
+  String? pageName;
+  String? rawSharedKey;
+  VoidCallback? listener;
+}
+
 class WorkbookNavigator extends StatefulWidget {
   const WorkbookNavigator({
     super.key,
@@ -111,14 +132,14 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   final List<CustomAction> _customActions = <CustomAction>[];
   late final TextEditingController _customActionLabelController;
   late final TextEditingController _customActionTemplateController;
-  late final CodeController _scriptEditorController;
   final TextEditingController _sharedScriptKeyController =
       TextEditingController(text: 'shared_module');
+  final List<ScriptEditorTab> _scriptEditorTabs = <ScriptEditorTab>[];
+  int? _activeScriptTabIndex;
   ScriptScope _scriptEditorScope = ScriptScope.page;
   String? _scriptEditorPageName;
   String _scriptSharedKey = 'shared_module';
   bool _scriptEditorLoading = false;
-  bool _scriptEditorDirty = false;
   String? _scriptEditorStatus;
   ScriptDescriptor? _currentScriptDescriptor;
   bool _suppressScriptEditorChanges = false;
@@ -140,16 +161,19 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   ScriptRuntime get _runtime => widget.scriptRuntime;
   bool get _isAdmin => widget.isAdmin;
 
+  ScriptEditorTab? get _activeScriptTab {
+    final index = _activeScriptTabIndex;
+    if (index == null || index < 0 || index >= _scriptEditorTabs.length) {
+      return null;
+    }
+    return _scriptEditorTabs[index];
+  }
+
   @override
   void initState() {
     super.initState();
     _customActionLabelController = TextEditingController();
     _customActionTemplateController = TextEditingController();
-    _scriptEditorController = CodeController(
-      language: yaml,
-      params: const EditorParams(tabSpaces: 2),
-    );
-    _scriptEditorController.addListener(_handleScriptEditorChanged);
     _sharedScriptKeyController.addListener(_handleSharedScriptKeyChanged);
     if (_isAdmin) {
       _initialiseCustomActions();
@@ -323,7 +347,6 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   @override
   void dispose() {
     _manager.removeListener(_handleManagerChanged);
-    _scriptEditorController.removeListener(_handleScriptEditorChanged);
     _sharedScriptKeyController.removeListener(_handleSharedScriptKeyChanged);
     _pageController.dispose();
     for (final state in _selectionStates.values) {
@@ -338,7 +361,13 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     });
     _customActionLabelController.dispose();
     _customActionTemplateController.dispose();
-    _scriptEditorController.dispose();
+    for (final tab in _scriptEditorTabs) {
+      final listener = tab.listener;
+      if (listener != null) {
+        tab.controller.removeListener(listener);
+      }
+      tab.controller.dispose();
+    }
     _sharedScriptKeyController.dispose();
     super.dispose();
   }
@@ -582,17 +611,20 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     );
   }
 
-  void _handleScriptEditorChanged() {
+  void _handleScriptEditorChanged(ScriptEditorTab tab) {
     if (_suppressScriptEditorChanges) {
       return;
     }
-    if (!_scriptEditorMutable) {
+    if (!tab.isMutable) {
       return;
     }
-    if (!_scriptEditorDirty || _scriptEditorSplitPreview) {
+    final isActive = identical(tab, _activeScriptTab);
+    if (!tab.isDirty || (isActive && _scriptEditorSplitPreview)) {
       setState(() {
-        _scriptEditorDirty = true;
+        tab.isDirty = true;
       });
+    } else {
+      tab.isDirty = true;
     }
   }
 
@@ -602,6 +634,11 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       setState(() {
         _scriptSharedKey = value;
       });
+    }
+    final activeTab = _activeScriptTab;
+    if (activeTab != null &&
+        activeTab.descriptor.scope == ScriptScope.shared) {
+      activeTab.rawSharedKey = _sharedScriptKeyController.text;
     }
   }
 
@@ -1000,6 +1037,319 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     );
   }
 
+  int _indexOfTabForDescriptor(ScriptDescriptor descriptor) {
+    return _scriptEditorTabs.indexWhere(
+      (tab) =>
+          tab.descriptor.scope == descriptor.scope &&
+          tab.descriptor.key == descriptor.key,
+    );
+  }
+
+  void _activateTab(
+    int index, {
+    Map<String, bool>? expandedOverride,
+    String? resolvedNodeId,
+    String? pageNameOverride,
+    String? rawSharedKeyOverride,
+  }) {
+    if (index < 0 || index >= _scriptEditorTabs.length) {
+      setState(() {
+        _activeScriptTabIndex = null;
+        _currentScriptDescriptor = null;
+        _scriptEditorMutable = false;
+        _scriptEditorStatus =
+            'Selectionnez un script a charger pour commencer.';
+        _activeScriptNodeId = null;
+      });
+      return;
+    }
+
+    final tab = _scriptEditorTabs[index];
+    final descriptor = tab.descriptor;
+    final updatedExpanded = Map<String, bool>.from(
+      expandedOverride ?? _scriptTreeExpanded,
+    );
+    final parents = _scriptTreeParents;
+    final nodeId = resolvedNodeId ??
+        _findNodeIdForDescriptor(_scriptTreeNodes, descriptor);
+    if (nodeId != null) {
+      _expandAncestorsForId(nodeId, updatedExpanded, parents: parents);
+    }
+
+    String? resolvedPageName = pageNameOverride ?? tab.pageName;
+    if (descriptor.scope == ScriptScope.page && resolvedPageName == null) {
+      for (final page in _manager.workbook.pages) {
+        if (normaliseScriptKey(page.name) == descriptor.key) {
+          resolvedPageName = page.name;
+          break;
+        }
+      }
+    }
+    tab.pageName = resolvedPageName;
+
+    String? resolvedRawSharedKey = rawSharedKeyOverride ?? tab.rawSharedKey;
+    if (descriptor.scope == ScriptScope.shared) {
+      resolvedRawSharedKey ??= descriptor.key;
+      tab.rawSharedKey = resolvedRawSharedKey;
+    }
+
+    setState(() {
+      _activeScriptTabIndex = index;
+      _currentScriptDescriptor = descriptor;
+      _scriptEditorScope = descriptor.scope;
+      switch (descriptor.scope) {
+        case ScriptScope.global:
+          break;
+        case ScriptScope.page:
+          _scriptEditorPageName = resolvedPageName;
+          break;
+        case ScriptScope.shared:
+          final rawValue = resolvedRawSharedKey ?? descriptor.key;
+          _sharedScriptKeyController
+              .removeListener(_handleSharedScriptKeyChanged);
+          _sharedScriptKeyController.text = rawValue;
+          _sharedScriptKeyController.selection =
+              TextSelection.collapsed(offset: rawValue.length);
+          _sharedScriptKeyController
+              .addListener(_handleSharedScriptKeyChanged);
+          _scriptSharedKey = normaliseScriptKey(rawValue);
+          break;
+      }
+      _scriptTreeExpanded
+        ..clear()
+        ..addAll(updatedExpanded);
+      _activeScriptNodeId = nodeId;
+      _scriptEditorMutable = tab.isMutable;
+      _scriptEditorStatus = tab.status;
+    });
+  }
+
+  Future<void> _openOrFocusTab(
+    ScriptDescriptor descriptor, {
+    String? pageName,
+    String? rawSharedKey,
+    String? nodeId,
+    Map<String, bool>? expanded,
+  }) async {
+    final resolvedRaw =
+        descriptor.scope == ScriptScope.shared ? (rawSharedKey ?? descriptor.key) : null;
+    final existingIndex = _indexOfTabForDescriptor(descriptor);
+    if (existingIndex != -1) {
+      final tab = _scriptEditorTabs[existingIndex];
+      if (pageName != null) {
+        tab.pageName = pageName;
+      }
+      if (resolvedRaw != null) {
+        tab.rawSharedKey = resolvedRaw;
+      }
+      _activateTab(
+        existingIndex,
+        expandedOverride: expanded,
+        resolvedNodeId: nodeId,
+        pageNameOverride: pageName,
+        rawSharedKeyOverride: resolvedRaw,
+      );
+      return;
+    }
+
+    final controller = CodeController(
+      language: yaml,
+      params: const EditorParams(tabSpaces: 2),
+    );
+    final tab = ScriptEditorTab(
+      descriptor: descriptor,
+      controller: controller,
+      pageName: pageName,
+      rawSharedKey: resolvedRaw,
+      isDirty: false,
+      isMutable: false,
+    );
+    final listener = () => _handleScriptEditorChanged(tab);
+    tab.listener = listener;
+    controller.addListener(listener);
+    setState(() {
+      _scriptEditorTabs.add(tab);
+    });
+    final newIndex = _scriptEditorTabs.length - 1;
+    _activateTab(
+      newIndex,
+      expandedOverride: expanded,
+      resolvedNodeId: nodeId,
+      pageNameOverride: pageName,
+      rawSharedKeyOverride: resolvedRaw,
+    );
+    await _loadTabSource(tab);
+  }
+
+  Future<void> _loadTabSource(ScriptEditorTab tab) async {
+    setState(() {
+      _scriptEditorLoading = true;
+      if (identical(tab, _activeScriptTab)) {
+        _scriptEditorStatus = 'Chargement de ${tab.descriptor.fileName}...';
+      }
+    });
+    try {
+      final storage = _runtime.storage;
+      final existing = await storage.loadScript(tab.descriptor);
+      StoredScript? stored = existing;
+      var createdFromTemplate = false;
+      if (stored == null && storage.supportsFileSystem) {
+        final template = _defaultScriptTemplate(tab.descriptor);
+        stored = await storage.saveScript(tab.descriptor, template);
+        createdFromTemplate = true;
+        debugPrint(
+          'Script manquant pour ${tab.descriptor.fileName}. Modèle sauvegardé dans ${stored.origin}.',
+        );
+        await _refreshScriptLibrary(silent: true);
+      }
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _currentScriptDescriptor = tab.descriptor;
+        _suppressScriptEditorChanges = true;
+        tab.controller.text = stored?.source ?? '';
+        _suppressScriptEditorChanges = false;
+        tab.isDirty = false;
+        tab.isMutable = stored?.isMutable ?? false;
+        if (stored == null) {
+          tab.status = storage.supportsFileSystem
+              ? 'Script introuvable pour ${tab.descriptor.fileName}.'
+              :
+                  'Script introuvable et édition indisponible sur cette plateforme (lecture seule).';
+        } else if (!tab.isMutable) {
+          tab.status =
+              'Script chargé depuis ${stored.origin}. Edition indisponible sur cette plateforme (lecture seule).';
+        } else {
+          tab.status = createdFromTemplate
+              ? 'Script absent. Modèle par défaut créé et sauvegardé (${stored.origin}).'
+              : 'Script chargé depuis ${stored.origin}.';
+        }
+        if (identical(tab, _activeScriptTab)) {
+          _scriptEditorMutable = tab.isMutable;
+          _scriptEditorStatus = tab.status;
+        }
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        final message = 'Erreur lors du chargement: $error';
+        tab.status = message;
+        if (identical(tab, _activeScriptTab)) {
+          _scriptEditorStatus = message;
+        }
+      });
+    } finally {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _scriptEditorLoading = false;
+      });
+    }
+  }
+
+  String _tabTitle(ScriptEditorTab tab) {
+    switch (tab.descriptor.scope) {
+      case ScriptScope.global:
+        return 'Global';
+      case ScriptScope.page:
+        return tab.pageName ?? tab.descriptor.key;
+      case ScriptScope.shared:
+        return tab.rawSharedKey ?? tab.descriptor.key;
+    }
+  }
+
+  void _handleCloseScriptTab(int index) {
+    if (index < 0 || index >= _scriptEditorTabs.length) {
+      return;
+    }
+    final tab = _scriptEditorTabs[index];
+    final listener = tab.listener;
+    if (listener != null) {
+      tab.controller.removeListener(listener);
+    }
+    tab.controller.dispose();
+
+    int? nextActiveIndex = _activeScriptTabIndex;
+    if (nextActiveIndex != null) {
+      if (nextActiveIndex == index) {
+        nextActiveIndex = null;
+      } else if (nextActiveIndex > index) {
+        nextActiveIndex -= 1;
+      }
+    }
+
+    setState(() {
+      _scriptEditorTabs.removeAt(index);
+      _activeScriptTabIndex = nextActiveIndex;
+    });
+
+    if (_scriptEditorTabs.isEmpty) {
+      setState(() {
+        _currentScriptDescriptor = null;
+        _scriptEditorMutable = false;
+        _scriptEditorStatus =
+            'Selectionnez un script a charger pour commencer.';
+        _activeScriptNodeId = null;
+      });
+      return;
+    }
+
+    final targetIndex = nextActiveIndex ?? (index > 0 ? index - 1 : 0);
+    _activateTab(targetIndex);
+  }
+
+  Widget _buildScriptTabChip(
+    BuildContext context, {
+    required ScriptEditorTab tab,
+    required bool isActive,
+    required VoidCallback onSelect,
+    required VoidCallback onClose,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final title = _tabTitle(tab);
+    final displayTitle = tab.isDirty ? '$title*' : title;
+    final backgroundColor = isActive
+        ? colorScheme.primary.withOpacity(0.12)
+        : colorScheme.surfaceVariant.withOpacity(
+            theme.brightness == Brightness.dark ? 0.35 : 0.25,
+          );
+    final textStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: isActive ? colorScheme.primary : null,
+      fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+    );
+
+    return Material(
+      color: backgroundColor,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onSelect,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Text(displayTitle, style: textStyle),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, size: 16),
+              tooltip: 'Fermer $title',
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+              splashRadius: 18,
+              onPressed: onClose,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _handleSelectScriptDescriptor(
     ScriptDescriptor descriptor, {
     String? pageName,
@@ -1012,41 +1362,25 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     if (resolvedNodeId != null) {
       _expandAncestorsForId(resolvedNodeId, expanded);
     }
-    setState(() {
-      _scriptEditorScope = descriptor.scope;
-      switch (descriptor.scope) {
-        case ScriptScope.global:
+    String? resolvedPageName = pageName;
+    if (descriptor.scope == ScriptScope.page && resolvedPageName == null) {
+      for (final page in _manager.workbook.pages) {
+        if (normaliseScriptKey(page.name) == descriptor.key) {
+          resolvedPageName = page.name;
           break;
-        case ScriptScope.page:
-          String? resolvedName = pageName;
-          if (resolvedName == null) {
-            for (final page in _manager.workbook.pages) {
-              if (normaliseScriptKey(page.name) == descriptor.key) {
-                resolvedName = page.name;
-                break;
-              }
-            }
-          }
-          if (resolvedName != null) {
-            _scriptEditorPageName = resolvedName;
-          }
-          break;
-        case ScriptScope.shared:
-          final rawValue = rawSharedKey ?? descriptor.key;
-          _sharedScriptKeyController.removeListener(_handleSharedScriptKeyChanged);
-          _sharedScriptKeyController.text = rawValue;
-          _sharedScriptKeyController.selection =
-              TextSelection.collapsed(offset: rawValue.length);
-          _sharedScriptKeyController.addListener(_handleSharedScriptKeyChanged);
-          _scriptSharedKey = normaliseScriptKey(rawValue);
-          break;
+        }
       }
-      _scriptTreeExpanded
-        ..clear()
-        ..addAll(expanded);
-      _activeScriptNodeId = resolvedNodeId;
-    });
-    await _loadScriptEditor();
+    }
+    final resolvedRawSharedKey = descriptor.scope == ScriptScope.shared
+        ? (rawSharedKey ?? descriptor.key)
+        : null;
+    await _openOrFocusTab(
+      descriptor,
+      pageName: resolvedPageName,
+      rawSharedKey: resolvedRawSharedKey,
+      nodeId: resolvedNodeId,
+      expanded: expanded,
+    );
   }
 
   Future<void> _promptNewSharedModule(BuildContext context) async {
@@ -1146,7 +1480,15 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   }
 
   Future<void> _handleSaveScript() async {
-    if (!_scriptEditorMutable) {
+    final activeTab = _activeScriptTab;
+    if (activeTab == null) {
+      setState(() {
+        _scriptEditorStatus =
+            "Impossible d'enregistrer: aucun script selectionne.";
+      });
+      return;
+    }
+    if (!activeTab.isMutable) {
       setState(() {
         _scriptEditorStatus =
             'Edition indisponible sur cette plateforme (lecture seule).';
@@ -1167,24 +1509,31 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
     });
     try {
       final stored =
-          await _runtime.storage.saveScript(descriptor, _scriptEditorController.text);
+          await _runtime.storage.saveScript(descriptor, activeTab.controller.text);
       await _runtime.reload();
       await _refreshScriptLibrary(silent: true);
       if (!mounted) {
         return;
       }
       setState(() {
+        activeTab.descriptor = stored.descriptor;
+        activeTab.isDirty = false;
+        if (stored.descriptor.scope == ScriptScope.shared) {
+          activeTab.rawSharedKey = _sharedScriptKeyController.text;
+        }
         _currentScriptDescriptor = stored.descriptor;
-        _scriptEditorDirty = false;
         _scriptEditorStatus = 'Script enregistre dans ${stored.origin}.';
+        activeTab.status = _scriptEditorStatus;
       });
     } catch (error) {
       if (!mounted) {
         return;
       }
       setState(() {
-        _scriptEditorStatus =
+        final message =
             "Erreur lors de l'enregistrement du script: $error";
+        _scriptEditorStatus = message;
+        activeTab.status = message;
       });
     } finally {
       if (mounted) {
@@ -1202,7 +1551,10 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       });
       await _runtime.reload();
       await _refreshScriptLibrary(silent: true);
-      await _loadScriptEditor();
+      final activeTab = _activeScriptTab;
+      if (activeTab != null) {
+        await _loadTabSource(activeTab);
+      }
     } catch (error) {
       if (!mounted) {
         return;
@@ -1245,72 +1597,22 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       setState(() {
         _currentScriptDescriptor = null;
         _scriptEditorLoading = false;
-        _suppressScriptEditorChanges = true;
-        _scriptEditorController.clear();
-        _suppressScriptEditorChanges = false;
-        _scriptEditorDirty = false;
         _scriptEditorMutable = false;
         _scriptEditorStatus =
             'Selectionnez un script a charger pour commencer.';
       });
       return;
     }
-    setState(() {
-      _scriptEditorLoading = true;
-      _scriptEditorStatus = 'Chargement de ${descriptor.fileName}...';
-    });
-    try {
-      final storage = _runtime.storage;
-      final existing = await storage.loadScript(descriptor);
-      StoredScript? stored = existing;
-      var createdFromTemplate = false;
-      if (stored == null && storage.supportsFileSystem) {
-        final template = _defaultScriptTemplate(descriptor);
-        stored = await storage.saveScript(descriptor, template);
-        createdFromTemplate = true;
-        debugPrint(
-          'Script manquant pour ${descriptor.fileName}. Modèle sauvegardé dans ${stored.origin}.',
-        );
-        await _refreshScriptLibrary(silent: true);
-      }
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _currentScriptDescriptor = descriptor;
-        _suppressScriptEditorChanges = true;
-        _scriptEditorController.text = stored?.source ?? '';
-        _suppressScriptEditorChanges = false;
-        _scriptEditorDirty = false;
-        _scriptEditorMutable = stored?.isMutable ?? false;
-        if (stored == null) {
-          _scriptEditorStatus = storage.supportsFileSystem
-              ? 'Script introuvable pour ${descriptor.fileName}.'
-              :
-                  'Script introuvable et édition indisponible sur cette plateforme (lecture seule).';
-        } else if (!_scriptEditorMutable) {
-          _scriptEditorStatus =
-              'Script chargé depuis ${stored.origin}. Edition indisponible sur cette plateforme (lecture seule).';
-        } else {
-          _scriptEditorStatus = createdFromTemplate
-              ? 'Script absent. Modèle par défaut créé et sauvegardé (${stored.origin}).'
-              : 'Script chargé depuis ${stored.origin}.';
-        }
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _scriptEditorStatus = 'Erreur lors du chargement: $error';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _scriptEditorLoading = false;
-        });
-      }
-    }
+    final pageName =
+        descriptor.scope == ScriptScope.page ? _scriptEditorPageName : null;
+    final rawSharedKey = descriptor.scope == ScriptScope.shared
+        ? _sharedScriptKeyController.text
+        : null;
+    await _openOrFocusTab(
+      descriptor,
+      pageName: pageName,
+      rawSharedKey: rawSharedKey,
+    );
   }
 
   String _defaultScriptTemplate(ScriptDescriptor descriptor) {
@@ -1438,6 +1740,43 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       codeTheme: codeTheme,
       lineNumberStyle: lineNumberStyle,
     );
+    final activeTab = _activeScriptTab;
+    final isDirty = activeTab?.isDirty ?? false;
+    final isMutable = activeTab?.isMutable ?? false;
+
+    Widget buildTabBar() {
+      if (_scriptEditorTabs.isEmpty) {
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text(
+              'Aucun onglet ouvert. Sélectionnez un script dans la bibliothèque.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        );
+      }
+
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (var i = 0; i < _scriptEditorTabs.length; i++)
+              Padding(
+                padding: EdgeInsets.only(right: i == _scriptEditorTabs.length - 1 ? 0 : 8),
+                child: _buildScriptTabChip(
+                  context,
+                  tab: _scriptEditorTabs[i],
+                  isActive: i == _activeScriptTabIndex,
+                  onSelect: () => _activateTab(i),
+                  onClose: () => _handleCloseScriptTab(i),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
 
     List<Widget> buildActionButtons({required bool includeFullscreenToggle}) {
       return [
@@ -1483,12 +1822,12 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
         ),
         const SizedBox(width: 4),
         FilledButton.icon(
-          onPressed: (_scriptEditorLoading || !_scriptEditorDirty || !_scriptEditorMutable)
+          onPressed: (_scriptEditorLoading || !isDirty || !isMutable)
               ? null
               : _handleSaveScript,
           icon: const Icon(Icons.save_outlined),
           label: Text(
-            _scriptEditorDirty ? 'Enregistrer*' : 'Enregistrer',
+            isDirty ? 'Enregistrer*' : 'Enregistrer',
           ),
         ),
       ];
@@ -1498,6 +1837,8 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          buildTabBar(),
+          if (_scriptEditorTabs.isNotEmpty) const SizedBox(height: 8),
           if (scriptFileName != null)
             Text(
               'Fichier actuel : $scriptFileName',
@@ -1634,43 +1975,69 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       borderRadius: const BorderRadius.all(Radius.circular(8)),
     );
 
-    final editor = CodeTheme(
-      data: codeTheme,
-      child: DecoratedBox(
-        decoration: borderDecoration,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: IgnorePointer(
-                ignoring: !_scriptEditorMutable,
-                child: TopAlignedCodeField(
-                  controller: _scriptEditorController,
-                  expands: true,
-                  textStyle: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                  ),
-                  lineNumberStyle: lineNumberStyle,
-                  padding: const EdgeInsets.all(12),
-                  background: theme.colorScheme.surface,
-                  textAlignVertical: TextAlignVertical.top,
-                ),
+    final activeTab = _activeScriptTab;
+    final controller = activeTab?.controller;
+    final isMutable = activeTab?.isMutable ?? false;
+
+    Widget buildEditorField() {
+      if (controller == null) {
+        return DecoratedBox(
+          decoration: borderDecoration,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Ouvrez un script depuis la bibliothèque pour commencer.',
+                style: theme.textTheme.bodyMedium,
+                textAlign: TextAlign.center,
               ),
             ),
-            if (_scriptEditorLoading)
-              const Positioned(
-                top: 16,
-                right: 16,
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        );
+      }
+
+      final field = CodeTheme(
+        data: codeTheme,
+        child: DecoratedBox(
+          decoration: borderDecoration,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: IgnorePointer(
+                  ignoring: !isMutable,
+                  child: TopAlignedCodeField(
+                    controller: controller,
+                    expands: true,
+                    textStyle: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 13,
+                    ),
+                    lineNumberStyle: lineNumberStyle,
+                    padding: const EdgeInsets.all(12),
+                    background: theme.colorScheme.surface,
+                    textAlignVertical: TextAlignVertical.top,
+                  ),
                 ),
               ),
-          ],
+              if (_scriptEditorLoading)
+                const Positioned(
+                  top: 16,
+                  right: 16,
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+
+      return field;
+    }
+
+    final editor = buildEditorField();
 
     Widget buildPreview() {
       return DecoratedBox(
@@ -1680,9 +2047,9 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(12),
             child: SelectableText(
-              _scriptEditorController.text.isEmpty
+              controller == null || controller.text.isEmpty
                   ? 'Aucun contenu pour le moment.'
-                  : _scriptEditorController.text,
+                  : controller.text,
               style: const TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 13,
@@ -1978,7 +2345,11 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
   }
 
   void _handleInsertCustomAction(CustomAction action) {
-    final controller = _scriptEditorController;
+    final tab = _activeScriptTab;
+    if (tab == null) {
+      return;
+    }
+    final controller = tab.controller;
     final selection = controller.selection;
     final insertion = action.template;
     final text = controller.text;
@@ -1995,10 +2366,12 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator> {
       composing: TextRange.empty,
     );
     _suppressScriptEditorChanges = false;
-    if (!_scriptEditorDirty) {
+    if (!tab.isDirty || _scriptEditorSplitPreview) {
       setState(() {
-        _scriptEditorDirty = true;
+        tab.isDirty = true;
       });
+    } else {
+      tab.isDirty = true;
     }
   }
 
