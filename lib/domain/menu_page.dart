@@ -5,7 +5,7 @@ import 'workbook_page.dart';
 /// Represents a structured entry in a [MenuPage] tree.
 @immutable
 class MenuTreeNode {
-  const MenuTreeNode._({
+  MenuTreeNode._({
     required this.id,
     required this.label,
     required List<MenuTreeNode> children,
@@ -98,7 +98,7 @@ class MenuTreeNode {
 /// Container for the tree displayed by a [MenuPage].
 @immutable
 class MenuTree {
-  const MenuTree({List<MenuTreeNode> nodes = const []})
+  MenuTree({List<MenuTreeNode> nodes = const []})
       : _nodes = List<MenuTreeNode>.unmodifiable(nodes);
 
   const MenuTree.empty() : _nodes = const [];
