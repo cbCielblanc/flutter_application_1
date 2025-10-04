@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/menu_page.dart';
 import '../../domain/workbook.dart';
 import '../workbook_page_display.dart';
+import 'menu_tree_view.dart';
 
 class MenuPageView extends StatelessWidget {
   const MenuPageView({
@@ -29,18 +30,6 @@ class MenuPageView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final destinations = <_MenuDestination>[
-      for (var index = 0; index < workbook.pages.length; index++)
-        if (workbook.pages[index] is! MenuPage)
-          _MenuDestination(
-            title: workbook.pages[index].name,
-            subtitle: workbookPageDescription(workbook.pages[index]),
-            icon: workbookPageIcon(workbook.pages[index]),
-            pageIndex: index,
-            canRemove: canRemovePage(index),
-          ),
-    ];
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
       child: Column(
@@ -75,31 +64,58 @@ class MenuPageView extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 16),
-          Expanded(
-            child: destinations.isEmpty
-                ? Center(
-                    child: Text(
-                      'Aucune page disponible pour le moment.',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  )
-                : ListView.separated(
-                    padding: EdgeInsets.zero,
-                    itemCount: destinations.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final destination = destinations[index];
-                      return _MenuDestinationCard(
-                        destination: destination,
-                        onOpenPage: onOpenPage,
-                        onRemovePage: onRemovePage,
-                        enableEditing: enableEditing,
-                      );
-                    },
-                  ),
-          ),
+          Expanded(child: _buildLayout(context)),
         ],
       ),
+    );
+  }
+
+  Widget _buildLayout(BuildContext context) {
+    if (page.layout == 'tree') {
+      return MenuTreeView(
+        page: page,
+        workbook: workbook,
+        onOpenPage: onOpenPage,
+        onRemovePage: onRemovePage,
+        canRemovePage: canRemovePage,
+        enableEditing: enableEditing,
+      );
+    }
+
+    final destinations = <_MenuDestination>[
+      for (var index = 0; index < workbook.pages.length; index++)
+        if (workbook.pages[index] is! MenuPage)
+          _MenuDestination(
+            title: workbook.pages[index].name,
+            subtitle: workbookPageDescription(workbook.pages[index]),
+            icon: workbookPageIcon(workbook.pages[index]),
+            pageIndex: index,
+            canRemove: canRemovePage(index),
+          ),
+    ];
+
+    if (destinations.isEmpty) {
+      return Center(
+        child: Text(
+          'Aucune page disponible pour le moment.',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: EdgeInsets.zero,
+      itemCount: destinations.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final destination = destinations[index];
+        return _MenuDestinationCard(
+          destination: destination,
+          onOpenPage: onOpenPage,
+          onRemovePage: onRemovePage,
+          enableEditing: enableEditing,
+        );
+      },
     );
   }
 }

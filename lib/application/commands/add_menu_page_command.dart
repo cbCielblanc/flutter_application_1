@@ -22,10 +22,19 @@ class AddMenuPageCommand extends WorkbookCommand {
 
   @override
   WorkbookCommandResult performExecute(WorkbookCommandContext context) {
+    final initialMetadata = Map<String, Object?>.from(metadata);
+    final tree = layout == 'tree'
+        ? _resolveTree(initialMetadata, context.workbook)
+        : null;
+    if (tree != null) {
+      initialMetadata['tree'] = tree.toMetadata();
+    }
+
     final newPage = MenuPage(
       name: _generatePageName(context.workbook),
       layout: layout,
-      metadata: metadata,
+      metadata: initialMetadata,
+      tree: tree,
     );
     final pages = context.workbook.pages.toList(growable: true)..add(newPage);
     final updatedWorkbook = Workbook(pages: pages);
@@ -39,4 +48,18 @@ class AddMenuPageCommand extends WorkbookCommand {
   }
 
   String _generatePageName(Workbook workbook) => 'Menu principal';
+
+  MenuTree? _resolveTree(
+    Map<String, Object?> metadata,
+    Workbook workbook,
+  ) {
+    if (metadata.containsKey('tree')) {
+      final parsed = MenuTree.fromMetadata(metadata['tree']);
+      if (parsed.isNotEmpty) {
+        return parsed;
+      }
+    }
+    final generated = MenuTree.fromWorkbookPages(workbook.pages);
+    return generated.isEmpty ? null : generated;
+  }
 }
