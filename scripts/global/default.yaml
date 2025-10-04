@@ -1,7 +1,0 @@
-name: Global Script
-scope: global
-handlers:
-  - event: workbook.open
-    actions:
-      - log:
-          message: "Classeur ouvert"
