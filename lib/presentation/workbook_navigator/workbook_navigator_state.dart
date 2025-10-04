@@ -395,11 +395,17 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
                       Align(
                         alignment: Alignment.topRight,
                         child: SafeArea(
-                          minimum: const EdgeInsets.only(top: 24),
-                          child: _buildWorkspaceToggleTab(
-                            context: context,
-                            expanded: false,
-                            onPressed: _toggleAdminWorkspaceVisibility,
+                          minimum: EdgeInsets.zero,
+                          child: SizedBox(
+                            height: _kWorkspaceToggleTabHeight,
+                            child: Align(
+                              alignment: Alignment.topRight,
+                              child: _buildWorkspaceToggleTab(
+                                context: context,
+                                expanded: false,
+                                onPressed: _toggleAdminWorkspaceVisibility,
+                              ),
+                            ),
                           ),
                         ),
                       ),
