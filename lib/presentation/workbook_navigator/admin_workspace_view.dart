@@ -1,7 +1,7 @@
 part of 'workbook_navigator.dart';
 
-const double _kWorkspaceToggleTabWidth = 40;
-const double _kWorkspaceToggleTabHeight = 64;
+const double _kWorkspaceToggleTabWidth = 36;
+const double _kWorkspaceToggleTabHeight = 48;
 const String _kWorkspaceToggleTooltip =
     'Afficher/Masquer l’espace de développement';
 
@@ -55,7 +55,7 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
                     ],
                   ),
                   child: Center(
-                    child: Icon(icon, size: 16, color: foregroundColor),
+                    child: Icon(icon, size: 14, color: foregroundColor),
                   ),
                 ),
               ),
@@ -279,18 +279,8 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: _buildWorkspaceToggleTab(
-                  context: context,
-                  expanded: true,
-                  onPressed: () {
-                    _handleExitScriptEditorFullscreen();
-                    _toggleAdminWorkspaceVisibility();
-                  },
-                ),
-              ),
               Expanded(
                 child: Text(
                   'Espace de développement',
@@ -340,16 +330,23 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Padding(
                             padding: const EdgeInsets.only(right: 12),
-                            child: _buildWorkspaceToggleTab(
-                              context: context,
-                              expanded: true,
-                              onPressed: () {
-                                _handleExitScriptEditorFullscreen();
-                                _toggleAdminWorkspaceVisibility();
-                              },
+                            child: SizedBox(
+                              height: _kWorkspaceToggleTabHeight,
+                              child: Align(
+                                alignment: Alignment.topLeft,
+                                child: _buildWorkspaceToggleTab(
+                                  context: context,
+                                  expanded: true,
+                                  onPressed: () {
+                                    _handleExitScriptEditorFullscreen();
+                                    _toggleAdminWorkspaceVisibility();
+                                  },
+                                ),
+                              ),
                             ),
                           ),
                           Expanded(
