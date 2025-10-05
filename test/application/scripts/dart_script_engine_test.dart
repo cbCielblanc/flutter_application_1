@@ -43,6 +43,9 @@ void main() {
       );
 
       expect(module.exportNames, contains('onWorkbookOpen'));
+      final signature = module.signatureFor('onWorkbookOpen');
+      expect(signature, isNotNull);
+      expect(signature!.hostFunctions, containsAll(<String>['capture']));
       final export = module['onWorkbookOpen'];
       expect(export, isNotNull);
 
