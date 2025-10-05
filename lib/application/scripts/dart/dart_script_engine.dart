@@ -137,7 +137,7 @@ class DartScriptEngine {
     final plugin = _OptimaScriptPlugin(_bindingHost);
     compiler.addPlugin(plugin);
     compiler.entrypoints.add(libraryUri);
-    compiler.addSource(const DartSource(_apiLibraryUri, _apiStub));
+    compiler.addSource(DartSource(_apiLibraryUri, _apiStub));
 
     Program program;
     try {
