@@ -78,6 +78,7 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
   FocusNode? _focusNode;
   String? lines;
   String longestLine = '';
+  int _lineNumberDigits = 1;
 
   @override
   void initState() {
@@ -126,6 +127,7 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
     }
 
     _numberController?.text = buf.join('\n');
+    _lineNumberDigits = max(1, buf.length.toString().length);
 
     longestLine = '';
     for (final line in widget.controller.text.split('\n')) {
@@ -213,6 +215,20 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
     Container? numberCol;
 
     if (widget.lineNumbers) {
+      final digitSample = ''.padLeft(_lineNumberDigits, '0');
+      final textDirection = Directionality.of(context);
+      final digitPainter = TextPainter(
+        text: TextSpan(text: digitSample, style: numberTextStyle),
+        textDirection: textDirection,
+      )..layout();
+      const extraSpacing = 4.0;
+      final horizontalPadding =
+          widget.padding.left + widget.lineNumberStyle.margin / 2 + extraSpacing;
+      final computedNumberWidth = max<double>(
+        widget.lineNumberStyle.width,
+        digitPainter.width + horizontalPadding,
+      );
+
       lineNumberCol = TextField(
         smartQuotesType: widget.smartQuotesType,
         scrollPadding: widget.padding,
@@ -233,7 +249,7 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
       );
 
       numberCol = Container(
-        width: widget.lineNumberStyle.width,
+        width: computedNumberWidth,
         padding: EdgeInsets.only(
           left: widget.padding.left,
           right: widget.lineNumberStyle.margin / 2,
