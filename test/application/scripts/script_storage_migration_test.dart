@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -15,6 +17,26 @@ class _FakeAssetBundle extends CachingAssetBundle {
   final Map<String, String> _assets;
 
   @override
+  Future<ByteData> load(String key, {bool cache = true}) async {
+    if (key == 'AssetManifest.json') {
+      final bytes = Uint8List.fromList(utf8.encode(_manifest));
+      return ByteData.view(bytes.buffer);
+    }
+    final asset = _assets[key];
+    if (asset != null) {
+      final bytes = Uint8List.fromList(utf8.encode(asset));
+      return ByteData.view(bytes.buffer);
+    }
+    throw FlutterError('Unable to load asset: $key');
+  }
+
+  @override
+  Future<ByteBuffer> loadBuffer(String key, {bool cache = true}) async {
+    final data = await load(key, cache: cache);
+    return data.buffer;
+  }
+
+  @override
   Future<String> loadString(String key, {bool cache = true}) async {
     if (key == 'AssetManifest.json') {
       return _manifest;
@@ -23,7 +45,7 @@ class _FakeAssetBundle extends CachingAssetBundle {
     if (asset != null) {
       return asset;
     }
-    throw FlutterError('Asset $key introuvable');
+    throw FlutterError('Unable to load asset: $key');
   }
 }
 
