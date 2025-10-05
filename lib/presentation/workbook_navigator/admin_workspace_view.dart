@@ -246,29 +246,53 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
     }
 
     Widget buildEditorContent({required bool fullscreen}) {
-      return Column(
+      final statusMessage = status;
+      final editorArea = fullscreen
+          ? Expanded(child: editorSurface)
+          : Flexible(fit: FlexFit.tight, child: editorSurface);
+
+      final content = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           buildTabBar(),
           if (_scriptEditorTabs.isNotEmpty) const SizedBox(height: 8),
-          if (scriptFileName != null)
+          if (scriptFileName != null) ...[
             Text(
               'Fichier actuel : $scriptFileName',
               style: theme.textTheme.bodySmall,
             ),
-          if (scriptFileName != null) const SizedBox(height: 8),
-          if (_customActions.isNotEmpty) _buildCustomActionsBar(context),
-          if (_customActions.isNotEmpty) const SizedBox(height: 12),
-          if (fullscreen)
-            Expanded(child: editorSurface)
-          else
-            Flexible(fit: FlexFit.tight, child: editorSurface),
-          const SizedBox(height: 8),
-          if (status != null)
-            Text(
-              status,
-              style: theme.textTheme.bodySmall,
+            const SizedBox(height: 8),
+          ],
+          if (_customActions.isNotEmpty) ...[
+            _buildCustomActionsBar(context),
+            const SizedBox(height: 12),
+          ],
+          editorArea,
+        ],
+      );
+
+      if (statusMessage == null) {
+        return content;
+      }
+
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 32),
+              child: content,
             ),
+          ),
+          Align(
+            alignment: Alignment.bottomLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                statusMessage,
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+          ),
         ],
       );
     }
