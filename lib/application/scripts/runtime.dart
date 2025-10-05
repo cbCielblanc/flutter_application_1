@@ -36,6 +36,7 @@ class ScriptRuntime {
     if (_initialised) {
       return;
     }
+    await storage.initialize(precompileAssets: true);
     await _ensureGlobalScript();
     _initialised = true;
   }
@@ -192,14 +193,42 @@ class ScriptRuntime {
     if (export == null) {
       return;
     }
+    final callback = export.callback;
     try {
-      await export.call(context);
+      await Future.sync(() => callback(context));
     } catch (error, stackTrace) {
-      await _logSink(
-        'Exception inattendue dans $callbackName (${script.descriptor.key}): $error',
+      final message = _formatScriptError(
+        script: script,
+        callbackName: callbackName,
+        error: error,
       );
-      debugPrintStack(stackTrace: stackTrace);
+      await Future.sync(() => _logSink(message));
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'optima_script',
+          context: ErrorDescription(
+            'while executing $callbackName for ${script.descriptor.fileName}',
+          ),
+        ),
+      );
+      Error.throwWithStackTrace(error, stackTrace);
     }
+  }
+
+  String _formatScriptError({
+    required StoredScript script,
+    required String callbackName,
+    required Object error,
+  }) {
+    final descriptor = script.descriptor;
+    return [
+      'Erreur script détectée',
+      '  Script   : ${descriptor.fileName}',
+      '  Callback : $callbackName',
+      '  Exception: $error',
+    ].join('\n');
   }
 
   String _callbackName(ScriptEventType type) {

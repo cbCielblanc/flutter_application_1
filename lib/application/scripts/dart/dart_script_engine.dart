@@ -42,17 +42,24 @@ class DartBindingHost {
   }
 }
 
+/// Signature for a compiled script callback.
+typedef DartScriptCallback = FutureOr<void> Function(ScriptContext context);
+
 /// Representation of a callable export defined by a script.
 class DartScriptExport {
   const DartScriptExport({
     required this.name,
-    required Future<void> Function(ScriptContext context) callback,
+    required DartScriptCallback callback,
   }) : _callback = callback;
 
   final String name;
-  final Future<void> Function(ScriptContext context) _callback;
+  final DartScriptCallback _callback;
 
-  Future<void> call(ScriptContext context) => _callback(context);
+  DartScriptCallback get callback => _callback;
+
+  Future<void> call(ScriptContext context) async {
+    await Future.sync(() => _callback(context));
+  }
 }
 
 /// Container for the compiled representation of a script.
@@ -131,7 +138,7 @@ class DartScriptEngine {
     );
   }
 
-  Future<void> Function(ScriptContext context) _compileCallback(
+  DartScriptCallback _compileCallback(
     String name,
     Object? definition,
   ) {
