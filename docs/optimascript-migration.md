@@ -17,3 +17,35 @@ le nouveau format Dart (`*.dart`). Les administrateurs doivent :
 > **Important** : les anciens scripts Python ne sont plus pris en charge. Un
 > avertissement est affiché au démarrage si des fichiers `.py` sont encore
 > présents afin de faciliter leur migration.
+
+## Nouvelle API ScriptContext
+
+Les scripts Dart disposent désormais d'un pont typé accessible via
+`context.api`. Cette API évite toute mutation directe du classeur et s'appuie
+sur le moteur de commandes existant.
+
+### Endpoints principaux
+
+| Endpoint | Description |
+| --- | --- |
+| `context.api.workbook.sheetNames` | Liste immuable des feuilles disponibles. |
+| `context.api.workbook.activeSheet` | Retourne la feuille active (ou `null`). |
+| `workbook.sheetByName(name)` / `sheetAt(index)` | Résolution explicite d'une feuille. |
+| `workbook.activateSheetByName(name)` | Active une feuille et déclenche la navigation. |
+| `sheet.cellAt(row, column)` / `cellByLabel('A1')` | Accès typé aux cellules. |
+| `cell.setValue(value)` / `cell.clear()` | Écritures atomiques sur les cellules. |
+| `sheet.insertRow([index])` / `sheet.insertColumn([index])` | Insertion structurée dans la grille. |
+| `sheet.clear()` | Réinitialise l'ensemble d'une feuille. |
+
+### Exemple rapide
+
+```dart
+Future<void> onWorkbookOpen(ScriptContext context) async {
+  final workbook = context.api.workbook;
+  final summary = workbook.sheetByName('Synthèse');
+  final cell = summary?.cellByLabel('B2');
+  if (cell != null && cell.isEmpty) {
+    cell.setValue(DateTime.now().toIso8601String());
+  }
+}
+```

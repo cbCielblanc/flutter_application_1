@@ -131,5 +131,63 @@ Future<void> onWorkbookOpen(ScriptContext context) async {
         throwsA(isA<StateError>()),
       );
     });
+
+    test('compiled scripts can mutate the workbook through the API', () async {
+      const descriptor = ScriptDescriptor(
+        scope: ScriptScope.global,
+        key: 'api_access',
+      );
+      const source = '''
+import 'package:optimascript/api.dart';
+
+Future<void> onWorkbookOpen(ScriptContext context) async {
+  final workbook = context.api.workbook;
+  final second = workbook.sheetByName('Feuille 2');
+  if (second != null) {
+    final cell = second.cellAt(0, 0);
+    if (cell.isEmpty) {
+      cell.setValue(42);
+    }
+    second.insertColumn();
+  }
+  if (workbook.activateSheetAt(1)) {
+    final active = workbook.activeSheet;
+    active?.cellAt(0, 1).setValue(true);
+  }
+}
+''';
+
+      final engine = DartScriptEngine();
+      final module = await engine.loadModule(
+        descriptor: descriptor,
+        source: source,
+      );
+
+      final export = module['onWorkbookOpen'];
+      expect(export, isNotNull);
+
+      final workbook = Workbook(
+        pages: [
+          Sheet.fromRows(name: 'Feuille 1', rows: const [<Object?>[null]]),
+          Sheet.fromRows(name: 'Feuille 2', rows: const [<Object?>[null]]),
+        ],
+      );
+      final manager = WorkbookCommandManager(initialWorkbook: workbook);
+      final context = ScriptContext(
+        descriptor: descriptor,
+        eventType: ScriptEventType.workbookOpen,
+        workbook: workbook,
+        commandManager: manager,
+        log: (_) {},
+      );
+
+      await export!.call(context);
+
+      final secondSheet = manager.workbook.sheets[1];
+      expect(secondSheet.rows.first.first.value, equals(42));
+      expect(secondSheet.columnCount, equals(2));
+      expect(manager.activeSheetIndex, equals(1));
+      expect(secondSheet.rows.first[1].value, isTrue);
+    });
   });
 }

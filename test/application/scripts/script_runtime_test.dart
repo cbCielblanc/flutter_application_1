@@ -201,5 +201,63 @@ void main() {
       expect(captured, isNotEmpty);
       expect(captured.first.exception, isA<StateError>());
     });
+
+    test('exposes workbook scripting API for reading and writing', () async {
+      workbook = Workbook(
+        pages: <Sheet>[
+          Sheet.fromRows(name: 'Feuille', rows: const <List<Object?>>[<Object?>[null]]),
+          Sheet.fromRows(name: 'Autre', rows: const <List<Object?>>[<Object?>[null]]),
+        ],
+      );
+      commandManager = WorkbookCommandManager(initialWorkbook: workbook);
+
+      final storage = _InMemoryScriptStorage();
+      final descriptor = const ScriptDescriptor(scope: ScriptScope.global, key: 'default');
+      storage.addScript(
+        _createStoredScript(
+          descriptor: descriptor,
+          callbacks: <String, DartScriptCallback>{
+            'onWorkbookOpen': (ScriptContext context) {
+              final workbookApi = context.api.workbook;
+              expect(workbookApi.sheetNames, containsAll(<String>['Feuille', 'Autre']));
+              expect(workbookApi.activeSheetIndex, equals(0));
+
+              final sheet = workbookApi.sheetByName('Feuille');
+              expect(sheet, isNotNull);
+              final cell = sheet!.cellAt(0, 0);
+              expect(cell.isEmpty, isTrue);
+              expect(cell.text, isEmpty);
+              final updated = cell.setValue('Bienvenue');
+              expect(updated, isTrue);
+              expect(cell.text, 'Bienvenue');
+
+              final activated = workbookApi.activateSheetByName('Autre');
+              expect(activated, isTrue);
+              final otherSheet = workbookApi.sheetAt(1);
+              expect(otherSheet, isNotNull);
+              expect(otherSheet!.insertRow(), isTrue);
+
+              return context.logMessage('value:${cell.value}');
+            },
+          },
+        ),
+      );
+
+      final logs = <String>[];
+      final runtime = ScriptRuntime(
+        storage: storage,
+        commandManager: commandManager,
+        logSink: logs.add,
+      );
+
+      await runtime.dispatchWorkbookOpen();
+
+      final firstSheet = commandManager.workbook.sheets.first;
+      expect(firstSheet.rows.first.first.value, 'Bienvenue');
+      expect(commandManager.activeSheetIndex, equals(1));
+      final secondSheet = commandManager.workbook.sheets[1];
+      expect(secondSheet.rowCount, equals(2));
+      expect(logs, contains('value:Bienvenue'));
+    });
   });
 }

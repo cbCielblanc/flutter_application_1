@@ -7,6 +7,7 @@ import '../../domain/workbook.dart';
 import '../../domain/workbook_page.dart';
 import '../../state/sheet_selection_state.dart';
 import '../commands/workbook_command_manager.dart';
+import 'api/api.dart';
 import 'models.dart';
 import 'navigator_binding.dart';
 import 'scope.dart';
@@ -24,13 +25,15 @@ class ScriptContext {
     this.sheet,
     this.navigatorBinding,
     Map<String, Object?> additional = const <String, Object?>{},
-  }) : _additional = Map<String, Object?>.from(additional);
+  })  : api = ScriptApi(commandManager: commandManager),
+        _additional = Map<String, Object?>.from(additional);
 
   final ScriptDescriptor descriptor;
   final ScriptEventType eventType;
   final Workbook workbook;
   final WorkbookCommandManager commandManager;
   final ScriptContextLog log;
+  final ScriptApi api;
   final WorkbookPage? page;
   final Sheet? sheet;
   final ScriptNavigatorBinding? navigatorBinding;
