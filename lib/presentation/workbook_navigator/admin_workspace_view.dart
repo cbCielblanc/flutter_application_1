@@ -433,7 +433,7 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
         ),
         const SizedBox(height: 12),
         Text(
-          'Les modules OptimaScript sont désormais écrits en Dart. Chaque fichier expose les callbacks nécessaires (onWorkbookOpen, onPageEnter, etc.) et reçoit un ScriptContext donnant accès à l’API hôte.',
+          'Les modules OptimaScript sont désormais écrits en Dart. Chaque fichier expose les callbacks nécessaires (onWorkbookOpen, onWorksheetActivate, onWorksheetBeforeDoubleClick, etc.) et reçoit un ScriptContext donnant accès à l’API hôte.',
           style: theme.textTheme.bodyMedium,
         ),
         const SizedBox(height: 16),
@@ -451,6 +451,11 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
         ),
         _buildDocBullet(
           context,
+          'onWorkbookBeforeSave',
+          'Déclencheur pour préparer les exports, injecter des horodatages ou empêcher une sauvegarde.',
+        ),
+        _buildDocBullet(
+          context,
           'onPageEnter',
           'Déclencheur exécuté lorsque l’utilisateur arrive sur une page du classeur.',
         ),
@@ -461,6 +466,16 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
         ),
         _buildDocBullet(
           context,
+          'onWorksheetActivate',
+          'Notification dédiée à l’activation d’une feuille (équivalent VBA WorksheetActivate).',
+        ),
+        _buildDocBullet(
+          context,
+          'onWorksheetDeactivate',
+          'Complément permettant de savoir quelle feuille vient d’être quittée.',
+        ),
+        _buildDocBullet(
+          context,
           'onCellChanged',
           'Notifié lorsqu’une cellule est modifiée par l’utilisateur ou un script.',
         ),
@@ -468,6 +483,16 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
           context,
           'onSelectionChanged',
           'Appelé à chaque évolution de la sélection utilisateur.',
+        ),
+        _buildDocBullet(
+          context,
+          'onWorksheetBeforeSingleClick',
+          'Intercepte un clic simple sur la grille pour annuler ou rediriger l’interaction.',
+        ),
+        _buildDocBullet(
+          context,
+          'onWorksheetBeforeDoubleClick',
+          'Idéal pour ouvrir des formulaires contextuels à la manière de WorksheetBeforeDoubleClick.',
         ),
         _buildDocBullet(
           context,

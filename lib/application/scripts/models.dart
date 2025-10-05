@@ -52,11 +52,16 @@ class ScriptDocument {
 enum ScriptEventType {
   workbookOpen,
   workbookClose,
+  workbookBeforeSave,
   pageEnter,
   pageLeave,
+  worksheetActivate,
+  worksheetDeactivate,
   cellChanged,
   selectionChanged,
   notesChanged,
+  worksheetBeforeSingleClick,
+  worksheetBeforeDoubleClick,
 }
 
 extension ScriptEventTypeLabel on ScriptEventType {
@@ -66,16 +71,26 @@ extension ScriptEventTypeLabel on ScriptEventType {
         return 'workbook.open';
       case ScriptEventType.workbookClose:
         return 'workbook.close';
+      case ScriptEventType.workbookBeforeSave:
+        return 'workbook.beforeSave';
       case ScriptEventType.pageEnter:
         return 'page.enter';
       case ScriptEventType.pageLeave:
         return 'page.leave';
+      case ScriptEventType.worksheetActivate:
+        return 'worksheet.activate';
+      case ScriptEventType.worksheetDeactivate:
+        return 'worksheet.deactivate';
       case ScriptEventType.cellChanged:
         return 'cell.changed';
       case ScriptEventType.selectionChanged:
         return 'selection.changed';
       case ScriptEventType.notesChanged:
         return 'notes.changed';
+      case ScriptEventType.worksheetBeforeSingleClick:
+        return 'worksheet.beforeSingleClick';
+      case ScriptEventType.worksheetBeforeDoubleClick:
+        return 'worksheet.beforeDoubleClick';
     }
   }
 
@@ -85,16 +100,26 @@ extension ScriptEventTypeLabel on ScriptEventType {
         return ScriptEventType.workbookOpen;
       case 'workbook.close':
         return ScriptEventType.workbookClose;
+      case 'workbook.beforeSave':
+        return ScriptEventType.workbookBeforeSave;
       case 'page.enter':
         return ScriptEventType.pageEnter;
       case 'page.leave':
         return ScriptEventType.pageLeave;
+      case 'worksheet.activate':
+        return ScriptEventType.worksheetActivate;
+      case 'worksheet.deactivate':
+        return ScriptEventType.worksheetDeactivate;
       case 'cell.changed':
         return ScriptEventType.cellChanged;
       case 'selection.changed':
         return ScriptEventType.selectionChanged;
       case 'notes.changed':
         return ScriptEventType.notesChanged;
+      case 'worksheet.beforeSingleClick':
+        return ScriptEventType.worksheetBeforeSingleClick;
+      case 'worksheet.beforeDoubleClick':
+        return ScriptEventType.worksheetBeforeDoubleClick;
       default:
         throw ArgumentError('Evenement inconnu: $value');
     }

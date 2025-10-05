@@ -18,6 +18,16 @@ mixin _WorkbookPagesLogic on State<WorkbookNavigator> {
     );
     state.onValuesChanged =
         (values) => _persistSheetValues(sheet.name, values);
+    state.onCellValueChanged = (change) {
+      unawaited(
+        _runtime.dispatchCellChanged(sheet: sheet, change: change),
+      );
+    };
+    state.onSelectionChanged = (change) {
+      unawaited(
+        _runtime.dispatchSelectionChanged(sheet: sheet, change: change),
+      );
+    };
     state.syncFromSheet(sheet);
     return state;
   }

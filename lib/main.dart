@@ -125,6 +125,24 @@ class WorkbookHome extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Classeur Optima'),
         actions: [
+          IconButton(
+            tooltip: 'Enregistrer le classeur',
+            icon: const Icon(Icons.save_outlined),
+            onPressed: () async {
+              await scriptRuntime.dispatchWorkbookBeforeSave();
+              final snapshot = commandManager.workbook.toCsvMap();
+              final sheetCount = snapshot.length;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    sheetCount == 1
+                        ? 'Sauvegarde simulée : 1 feuille exportée'
+                        : 'Sauvegarde simulée : $sheetCount feuilles exportées',
+                  ),
+                ),
+              );
+            },
+          ),
           _ModeSwitcher(mode: mode, onChanged: onModeChanged),
           const SizedBox(width: 12),
           _ProfileBadge(isAdmin: isAdmin),

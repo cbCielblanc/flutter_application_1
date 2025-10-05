@@ -13,6 +13,8 @@ class SheetGrid extends StatefulWidget {
     this.columnCount = 26,
     this.cellWidth = 120,
     this.cellHeight = 44,
+    this.onCellTap,
+    this.onCellDoubleTap,
   });
 
   final SheetSelectionState selectionState;
@@ -20,6 +22,8 @@ class SheetGrid extends StatefulWidget {
   final int columnCount;
   final double cellWidth;
   final double cellHeight;
+  final ValueChanged<CellPosition>? onCellTap;
+  final ValueChanged<CellPosition>? onCellDoubleTap;
 
   @override
   State<SheetGrid> createState() => _SheetGridState();
@@ -142,6 +146,17 @@ class _SheetGridState extends State<SheetGrid> {
   void _handleCellTap(CellPosition position) {
     _selectionState.commitEditingValue();
     _selectionState.selectCell(position);
+    final callback = widget.onCellTap;
+    if (callback != null) {
+      callback(position);
+    }
+  }
+
+  void _handleCellDoubleTap(CellPosition position) {
+    final callback = widget.onCellDoubleTap;
+    if (callback != null) {
+      callback(position);
+    }
   }
 
   void _moveSelection(int rowDelta, int columnDelta) {
@@ -244,6 +259,7 @@ class _SheetGridState extends State<SheetGrid> {
                           position: position,
                           minHeight: _rowHeights[rowIndex - 1],
                           onSelect: () => _handleCellTap(position),
+                          onDoubleTap: () => _handleCellDoubleTap(position),
                           onMoveSelection: _moveSelection,
                           onRowHeightChanged: (height) =>
                               _handleRowHeightMeasured(rowIndex - 1, height),
@@ -453,6 +469,7 @@ class _DataCell extends StatefulWidget {
     required this.position,
     required this.minHeight,
     required this.onSelect,
+    this.onDoubleTap,
     required this.onMoveSelection,
     required this.onRowHeightChanged,
   });
@@ -461,6 +478,7 @@ class _DataCell extends StatefulWidget {
   final CellPosition position;
   final double minHeight;
   final VoidCallback onSelect;
+  final VoidCallback? onDoubleTap;
   final void Function(int rowDelta, int columnDelta) onMoveSelection;
   final ValueChanged<double> onRowHeightChanged;
 
@@ -696,6 +714,10 @@ class _DataCellState extends State<_DataCell> {
         onTap: widget.onSelect,
         onDoubleTap: () {
           widget.onSelect();
+          final callback = widget.onDoubleTap;
+          if (callback != null) {
+            callback();
+          }
           if (!_focusNode.hasFocus) {
             _focusNode.requestFocus();
           }
