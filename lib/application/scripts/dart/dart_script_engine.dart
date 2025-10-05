@@ -2400,8 +2400,10 @@ class $ChartApi implements $Instance {
     final description = instance.$value.describe();
     return wrapMap<String, Object?>(
       description,
-      (key) => $String(key),
-      (value) => $CellApi._wrapValue(value) ?? const $null(),
+      (key, value) => MapEntry<$Value, $Value>(
+        $String(key),
+        $CellApi._wrapValue(value) ?? const $null(),
+      ),
     );
   }
 }
