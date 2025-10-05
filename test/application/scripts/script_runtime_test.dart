@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -41,7 +42,17 @@ class _InMemoryScriptStorage extends ScriptStorage {
       '${descriptor.scope.name}:${descriptor.key}';
 }
 
-class _FakeAssetBundle extends CachingAssetBundle {}
+class _FakeAssetBundle extends CachingAssetBundle {
+  @override
+  Future<ByteData> load(String key) async => ByteData(0);
+
+  @override
+  Future<ImmutableBuffer> loadBuffer(String key) async {
+    final data = await load(key);
+    final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+    return ImmutableBuffer.fromUint8List(bytes);
+  }
+}
 
 StoredScript _createStoredScript({
   required ScriptDescriptor descriptor,
