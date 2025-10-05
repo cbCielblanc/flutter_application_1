@@ -1048,24 +1048,6 @@ class $SheetApi implements $Instance {
     return $bool(result);
   }
 
-  @override
-  $Value? $invoke(Runtime runtime, String identifier, List<$Value?> args) {
-    switch (identifier) {
-      case 'activate':
-        return _activate.call(runtime, this, args);
-      case 'cellAt':
-        return _cellAt.call(runtime, this, args);
-      case 'cellByLabel':
-        return _cellByLabel.call(runtime, this, args);
-      case 'insertRow':
-        return _insertRow.call(runtime, this, args);
-      case 'insertColumn':
-        return _insertColumn.call(runtime, this, args);
-      case 'clear':
-        return _clear.call(runtime, this, args);
-    }
-    return _superclass.$invoke(runtime, identifier, args);
-  }
 }
 
 class $CellApi implements $Instance {
@@ -1231,17 +1213,6 @@ class $CellApi implements $Instance {
     final instance = target as $CellApi;
     final result = instance.$value.clear();
     return $bool(result);
-  }
-
-  @override
-  $Value? $invoke(Runtime runtime, String identifier, List<$Value?> args) {
-    switch (identifier) {
-      case 'setValue':
-        return _setValue.call(runtime, this, args);
-      case 'clear':
-        return _clear.call(runtime, this, args);
-    }
-    return _superclass.$invoke(runtime, identifier, args);
   }
 
   static $Value? _wrapValue(Object? value) {
