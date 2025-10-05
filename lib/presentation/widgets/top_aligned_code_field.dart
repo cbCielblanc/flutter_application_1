@@ -108,11 +108,16 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
     _numberScroll?.dispose();
     _codeScroll?.dispose();
     _numberController?.dispose();
+    _numberController = null;
     _keyboardVisibilitySubscription?.cancel();
     super.dispose();
   }
 
   void _onTextChanged() {
+    if (!mounted || _numberController == null) {
+      return;
+    }
+
     final str = widget.controller.text.split('\n');
     final buf = <String>[];
 
