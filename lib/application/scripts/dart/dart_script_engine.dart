@@ -276,7 +276,7 @@ class $ScriptContext
   $ScriptContext.wrap(this.$value, this._bindingHost)
       : _superclass = $Object($value);
 
-  static final $type = BridgeTypeSpec(_apiLibraryUri, 'ScriptContext').ref;
+  static const $type = BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'ScriptContext'));
 
   static final $declaration = BridgeClassDef(
     BridgeClassType($type, isAbstract: true),
