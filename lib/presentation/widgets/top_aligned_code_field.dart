@@ -78,6 +78,8 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
   FocusNode? _focusNode;
   String? lines;
   String longestLine = '';
+  int _lineNumberDigits = 1;
+  int _lineCount = 1;
 
   @override
   void initState() {
@@ -126,6 +128,8 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
     }
 
     _numberController?.text = buf.join('\n');
+    _lineCount = max(1, buf.length);
+    _lineNumberDigits = max(1, _lineCount.toString().length);
 
     longestLine = '';
     for (final line in widget.controller.text.split('\n')) {
@@ -213,6 +217,29 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
     Container? numberCol;
 
     if (widget.lineNumbers) {
+      final textDirection = Directionality.of(context);
+      final numberSampleSpan = widget.lineNumberBuilder?.call(
+            _lineCount,
+            numberTextStyle,
+          ) ??
+          TextSpan(
+            text: ''.padLeft(_lineNumberDigits, '0'),
+            style: numberTextStyle,
+          );
+      final digitPainter = TextPainter(
+        text: numberSampleSpan,
+        textDirection: textDirection,
+        textAlign: widget.lineNumberStyle.textAlign,
+        maxLines: 1,
+      )..layout();
+      const extraSpacing = 4.0;
+      final horizontalPadding =
+          widget.padding.left + widget.lineNumberStyle.margin / 2 + extraSpacing;
+      final computedNumberWidth = max<double>(
+        widget.lineNumberStyle.width,
+        digitPainter.width + horizontalPadding,
+      );
+
       lineNumberCol = TextField(
         smartQuotesType: widget.smartQuotesType,
         scrollPadding: widget.padding,
@@ -224,6 +251,7 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
         selectionControls: widget.selectionControls,
         expands: widget.expands,
         scrollController: _numberScroll,
+        textWidthBasis: TextWidthBasis.longestLine,
         decoration: InputDecoration(
           disabledBorder: InputBorder.none,
           isDense: widget.isDense,
@@ -233,7 +261,7 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
       );
 
       numberCol = Container(
-        width: widget.lineNumberStyle.width,
+        width: computedNumberWidth,
         padding: EdgeInsets.only(
           left: widget.padding.left,
           right: widget.lineNumberStyle.margin / 2,
