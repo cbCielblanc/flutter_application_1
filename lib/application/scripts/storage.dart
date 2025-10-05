@@ -404,7 +404,7 @@ class ScriptStorage {
     Map<String, DartScriptSignature> signatures;
 
     try {
-      module = await _engine.loadModule(
+      module = await _engine.validate(
         descriptor: descriptor,
         source: source,
       );

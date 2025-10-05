@@ -113,6 +113,16 @@ class DartScriptEngine {
 
   final DartBindingHost _bindingHost;
 
+  Future<DartScriptModule> validate({
+    required ScriptDescriptor descriptor,
+    required String source,
+  }) {
+    return loadModule(
+      descriptor: descriptor,
+      source: source,
+    );
+  }
+
   Future<DartScriptModule> loadModule({
     required ScriptDescriptor descriptor,
     required String source,

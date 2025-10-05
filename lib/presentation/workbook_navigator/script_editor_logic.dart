@@ -109,22 +109,26 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         id: 'log',
         label: 'Ajouter un log',
         template: _normaliseCustomActionTemplate(
-          'print("[OptimaScript] Votre message")',
+          'await ctx.logMessage("[OptimaScript] Votre message");',
         ),
       ),
       CustomAction(
         id: 'if_event',
         label: 'Tester un événement',
         template: _normaliseCustomActionTemplate(
-          'if ctx.get("event") == "workbook.open":\n    pass',
+          'if (ctx.eventType.wireName == "workbook.open") {\n'
+          '  await ctx.logMessage("Classeur ouvert");\n'
+          '}',
         ),
       ),
       CustomAction(
         id: 'for_loop',
         label: 'Boucle sur les pages',
         template: _normaliseCustomActionTemplate(
-          'for index, page in enumerate(ctx.get("workbook", {}).get("pages", []), start=1):\n'
-          '    print(f"{index}. {page.get(\'name\')}")',
+          'for (var index = 0; index < ctx.workbook.pages.length; index++) {\n'
+          '  final page = ctx.workbook.pages[index];\n'
+          '  await ctx.logMessage("\${index + 1}. \${page.name}");\n'
+          '}',
         ),
       ),
     ]);
@@ -292,7 +296,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         stored = await storage.saveScript(tab.descriptor, template);
         createdFromTemplate = true;
         debugPrint(
-          'Script manquant pour ${tab.descriptor.fileName}. Modèle sauvegardé dans ${stored.origin}.',
+          'Script Dart manquant pour ${tab.descriptor.fileName}. Modèle sauvegardé dans ${stored.origin}.',
         );
         await _refreshScriptLibrary(silent: true);
       }
@@ -308,16 +312,16 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         tab.isMutable = stored?.isMutable ?? false;
         if (stored == null) {
           tab.status = storage.supportsFileSystem
-              ? 'Script introuvable pour ${tab.descriptor.fileName}.'
+              ? 'Script Dart introuvable pour ${tab.descriptor.fileName}.'
               :
-                  'Script introuvable et édition indisponible sur cette plateforme (lecture seule).';
+                  'Script Dart introuvable et édition indisponible sur cette plateforme (lecture seule).';
         } else if (!tab.isMutable) {
           tab.status =
-              'Script chargé depuis ${stored.origin}. Edition indisponible sur cette plateforme (lecture seule).';
+              'Script Dart chargé depuis ${stored.origin}. Edition indisponible sur cette plateforme (lecture seule).';
         } else {
           tab.status = createdFromTemplate
-              ? 'Script absent. Modèle par défaut créé et sauvegardé (${stored.origin}).'
-              : 'Script chargé depuis ${stored.origin}.';
+              ? 'Script Dart absent. Modèle par défaut créé et sauvegardé (${stored.origin}).'
+              : 'Script Dart chargé depuis ${stored.origin}.';
         }
         if (identical(tab, _activeScriptTab)) {
           _scriptEditorMutable = tab.isMutable;
@@ -329,7 +333,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         return;
       }
       setState(() {
-        final message = 'Erreur lors du chargement: $error';
+        final message = 'Erreur lors du chargement du script Dart: $error';
         tab.status = message;
         if (identical(tab, _activeScriptTab)) {
           _scriptEditorStatus = message;
@@ -422,7 +426,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
     }
     setState(() {
       _scriptEditorLoading = true;
-      _scriptEditorStatus = 'Validation du script...';
+      _scriptEditorStatus = 'Compilation du script Dart...';
       activeTab.status = _scriptEditorStatus;
     });
     final source = activeTab.controller.text;
@@ -439,7 +443,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
           return;
         }
         final message = error.allowSave
-            ? '${error.message}. Validation ignorée; enregistrement en cours.'
+            ? '${error.message}. Compilation ignorée; enregistrement en cours.'
             : error.message;
         setState(() {
           _scriptEditorStatus = message;
@@ -453,7 +457,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         if (!mounted) {
           return;
         }
-        final message = "Erreur lors de la validation du script: $error";
+        final message = "Erreur lors de la compilation du script Dart: $error";
         setState(() {
           _scriptEditorStatus = message;
           activeTab.status = message;
@@ -466,8 +470,8 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
       }
       setState(() {
         _scriptEditorStatus = validationSkipped
-            ? 'Validation indisponible. Enregistrement du script...'
-            : 'Enregistrement du script...';
+            ? 'Compilation indisponible. Enregistrement du script...'
+            : 'Enregistrement du script Dart...';
         activeTab.status = _scriptEditorStatus;
       });
 
@@ -488,7 +492,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
           activeTab.rawSharedKey = _sharedScriptKeyController.text;
         }
         _currentScriptDescriptor = stored.descriptor;
-        _scriptEditorStatus = 'Script enregistre dans ${stored.origin}.';
+        _scriptEditorStatus = 'Script Dart enregistré dans ${stored.origin}.';
         activeTab.status = _scriptEditorStatus;
       });
     } catch (error) {
@@ -497,7 +501,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
       }
       setState(() {
         final message =
-            "Erreur lors de l'enregistrement du script: $error";
+            "Erreur lors de l'enregistrement du script Dart: $error";
         _scriptEditorStatus = message;
         activeTab.status = message;
       });
@@ -513,7 +517,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
   Future<void> _handleReloadScripts() async {
     try {
       setState(() {
-        _scriptEditorStatus = 'Rechargement des scripts...';
+        _scriptEditorStatus = 'Rechargement des scripts Dart...';
       });
       await _runtime.reload();
       await _refreshScriptLibrary(silent: true);
@@ -526,7 +530,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         return;
       }
       setState(() {
-        _scriptEditorStatus = 'Erreur lors du rechargement: $error';
+        _scriptEditorStatus = 'Erreur lors du rechargement des scripts Dart: $error';
       });
     }
   }
@@ -585,28 +589,36 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
     switch (descriptor.scope) {
       case ScriptScope.global:
         return '''
-{
-  "onWorkbookOpen": [
-    {"call": "log", "args": ["Classeur chargé."]}
-  ],
-  "onWorkbookClose": [
-    {"call": "log", "args": ["Classeur fermé."]}
-  ]
+import 'package:flutter_application_1/application/scripts/context.dart';
+
+void onWorkbookOpen(ScriptContext ctx) async {
+  await ctx.logMessage('Classeur chargé.');
+}
+
+void onWorkbookClose(ScriptContext ctx) async {
+  await ctx.logMessage('Classeur fermé.');
 }
 ''';
       case ScriptScope.page:
         return '''
-{
-  "onPageEnter": [
-    {"call": "log", "args": ["Entrée sur la page ${descriptor.key}."]}
-  ],
-  "onPageLeave": [
-    {"call": "log", "args": ["Sortie de la page ${descriptor.key}."]}
-  ]
+import 'package:flutter_application_1/application/scripts/context.dart';
+
+void onPageEnter(ScriptContext ctx) async {
+  await ctx.logMessage('Entrée sur la page ${descriptor.key}.');
+}
+
+void onPageLeave(ScriptContext ctx) async {
+  await ctx.logMessage('Sortie de la page ${descriptor.key}.');
 }
 ''';
       case ScriptScope.shared:
-        return '{\n  "onInvoke": [{"call": "log", "args": ["Utilitaire exécuté."]}]\n}\n';
+        return '''
+import 'package:flutter_application_1/application/scripts/context.dart';
+
+void onInvoke(ScriptContext ctx) async {
+  await ctx.logMessage('Utilitaire exécuté.');
+}
+''';
     }
   }
 
@@ -631,13 +643,13 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
       final stored = await _runtime.storage.saveScript(descriptor, template);
       createdPages.add(page.name);
       debugPrint(
-        'Script automatiquement créé pour la page "${page.name}" (${stored.origin}).',
+        'Script Dart automatiquement créé pour la page "${page.name}" (${stored.origin}).',
       );
     }
     if (createdPages.isNotEmpty && mounted) {
       setState(() {
         final notice =
-            'Scripts créés automatiquement pour: ${createdPages.join(', ')}.';
+            'Scripts Dart créés automatiquement pour: ${createdPages.join(', ')}.';
         _scriptEditorStatus =
             _scriptEditorStatus == null ? notice : '${_scriptEditorStatus!}\n$notice';
       });
