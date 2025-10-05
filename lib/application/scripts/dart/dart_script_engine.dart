@@ -270,9 +270,7 @@ class _OptimaScriptPlugin implements EvalPlugin {
   }
 }
 
-class $ScriptContext
-    with $Bridge<ScriptContext>
-    implements ScriptContext, $Instance {
+class $ScriptContext implements $Instance {
   $ScriptContext.wrap(this.$value, this._bindingHost)
       : _superclass = $Object($value);
 
