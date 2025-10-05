@@ -65,36 +65,46 @@ class CommandRibbon extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _ToolbarIconButton(
-                icon: Icons.undo,
-                tooltip: 'Annuler',
-                onPressed: commandManager.canUndo
-                    ? () {
-                        onBeforeCommand?.call();
-                        commandManager.undo();
-                      }
-                    : null,
-              ),
-              _ToolbarIconButton(
-                icon: Icons.redo,
-                tooltip: 'Retablir',
-                onPressed: commandManager.canRedo
-                    ? () {
-                        onBeforeCommand?.call();
-                        commandManager.redo();
-                      }
-                    : null,
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _ToolbarIconButton(
+                        icon: Icons.undo,
+                        tooltip: 'Annuler',
+                        onPressed: commandManager.canUndo
+                            ? () {
+                                onBeforeCommand?.call();
+                                commandManager.undo();
+                              }
+                            : null,
+                      ),
+                      _ToolbarIconButton(
+                        icon: Icons.redo,
+                        tooltip: 'Retablir',
+                        onPressed: commandManager.canRedo
+                            ? () {
+                                onBeforeCommand?.call();
+                                commandManager.redo();
+                              }
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      for (final menu in _menus) ...[
+                        _CommandMenu(
+                          config: menu,
+                          manager: commandManager,
+                          onBeforeCommand: onBeforeCommand,
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(width: 12),
-              for (final menu in _menus) ...[
-                _CommandMenu(
-                  config: menu,
-                  manager: commandManager,
-                  onBeforeCommand: onBeforeCommand,
-                ),
-                const SizedBox(width: 8),
-              ],
-              const Spacer(),
               _ActivePageBadge(name: currentPageName),
             ],
           ),
