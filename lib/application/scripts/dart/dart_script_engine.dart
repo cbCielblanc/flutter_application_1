@@ -296,6 +296,10 @@ abstract class SheetApi {
   bool insertRow([int? index]);
   bool insertColumn([int? index]);
   bool clear();
+  RangeApi? range(String reference);
+  RowApi? row(int index);
+  ColumnApi? column(int index);
+  ChartApi? chart(String reference);
 }
 
 abstract class CellApi {
@@ -310,6 +314,53 @@ abstract class CellApi {
 
   bool setValue(Object? value);
   bool clear();
+}
+
+abstract class RangeApi {
+  int get rowCount;
+  int get columnCount;
+  bool get lastResult;
+  List<List<Object?>> get values;
+
+  RangeApi setValues(List<List<Object?>> values);
+  RangeApi setValue(Object? value);
+  RangeApi clear();
+  RangeApi fillDown();
+  RangeApi fillRight();
+  RangeApi sortByColumn([int columnIndex = 0, bool ascending = true]);
+  RangeApi formatAsNumber([int? decimalDigits]);
+  RangeApi autoFit();
+}
+
+abstract class RowApi {
+  int get index;
+  bool get lastResult;
+  List<Object?> get values;
+
+  RowApi setValues(List<Object?> values);
+  RowApi fillRight();
+  RowApi formatAsNumber([int? decimalDigits]);
+  RowApi autoFit();
+  RangeApi asRange();
+}
+
+abstract class ColumnApi {
+  int get index;
+  bool get lastResult;
+  List<Object?> get values;
+
+  ColumnApi setValues(List<Object?> values);
+  ColumnApi fillDown();
+  ColumnApi formatAsNumber([int? decimalDigits]);
+  ColumnApi autoFit();
+  RangeApi asRange();
+}
+
+abstract class ChartApi {
+  RangeApi get range;
+
+  ChartApi updateRange(RangeApi range);
+  Map<String, Object?> describe();
 }
 ''';
 
@@ -328,6 +379,10 @@ class _OptimaScriptPlugin implements EvalPlugin {
     registry.defineBridgeClass($WorkbookApi.$declaration);
     registry.defineBridgeClass($SheetApi.$declaration);
     registry.defineBridgeClass($CellApi.$declaration);
+    registry.defineBridgeClass($RangeApi.$declaration);
+    registry.defineBridgeClass($RowApi.$declaration);
+    registry.defineBridgeClass($ColumnApi.$declaration);
+    registry.defineBridgeClass($ChartApi.$declaration);
   }
 
   @override
@@ -348,6 +403,18 @@ class _OptimaScriptPlugin implements EvalPlugin {
     );
     runtime.addTypeAutowrapper(
       (value) => value is CellApi ? $CellApi.wrap(value) : null,
+    );
+    runtime.addTypeAutowrapper(
+      (value) => value is RangeApi ? $RangeApi.wrap(value) : null,
+    );
+    runtime.addTypeAutowrapper(
+      (value) => value is RowApi ? $RowApi.wrap(value) : null,
+    );
+    runtime.addTypeAutowrapper(
+      (value) => value is ColumnApi ? $ColumnApi.wrap(value) : null,
+    );
+    runtime.addTypeAutowrapper(
+      (value) => value is ChartApi ? $ChartApi.wrap(value) : null,
     );
   }
 }
@@ -886,6 +953,74 @@ class $SheetApi implements $Instance {
           ),
         ),
       ),
+      'range': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RangeApi')),
+            nullable: true,
+          ),
+          params: const [
+            BridgeParameter(
+              'reference',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.string),
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
+      'row': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RowApi')),
+            nullable: true,
+          ),
+          params: const [
+            BridgeParameter(
+              'index',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.int),
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
+      'column': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'ColumnApi')),
+            nullable: true,
+          ),
+          params: const [
+            BridgeParameter(
+              'index',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.int),
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
+      'chart': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'ChartApi')),
+            nullable: true,
+          ),
+          params: const [
+            BridgeParameter(
+              'reference',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.string),
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
     },
     getters: {
       'name': BridgeMethodDef(
@@ -945,6 +1080,14 @@ class $SheetApi implements $Instance {
         return _insertColumn;
       case 'clear':
         return _clear;
+      case 'range':
+        return _range;
+      case 'row':
+        return _row;
+      case 'column':
+        return _column;
+      case 'chart':
+        return _chart;
       default:
         return _superclass.$getProperty(runtime, identifier);
     }
@@ -1057,7 +1200,71 @@ class $SheetApi implements $Instance {
     return $bool(result);
   }
 
+  static const $Function _range = $Function(_invokeRange);
+
+  static $Value? _invokeRange(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $SheetApi;
+    final raw = args.isEmpty ? null : args[0]?.$reified;
+    if (raw == null) {
+      throw ArgumentError('range requiert une référence.');
+    }
+    final range = instance.$value.range(raw.toString());
+    return range == null ? const $null() : $RangeApi.wrap(range);
+  }
+
+  static const $Function _row = $Function(_invokeRow);
+
+  static $Value? _invokeRow(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $SheetApi;
+    final raw = args.isEmpty ? null : args[0]?.$reified;
+    if (raw is! int) {
+      throw ArgumentError('row attend un index entier.');
+    }
+    final row = instance.$value.row(raw);
+    return row == null ? const $null() : $RowApi.wrap(row);
+  }
+
+  static const $Function _column = $Function(_invokeColumn);
+
+  static $Value? _invokeColumn(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $SheetApi;
+    final raw = args.isEmpty ? null : args[0]?.$reified;
+    if (raw is! int) {
+      throw ArgumentError('column attend un index entier.');
+    }
+    final column = instance.$value.column(raw);
+    return column == null ? const $null() : $ColumnApi.wrap(column);
+  }
+
+  static const $Function _chart = $Function(_invokeChart);
+
+  static $Value? _invokeChart(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $SheetApi;
+    final raw = args.isEmpty ? null : args[0]?.$reified;
+    if (raw == null) {
+      throw ArgumentError('chart requiert une référence.');
+    }
+    final chart = instance.$value.chart(raw.toString());
+    return chart == null ? const $null() : $ChartApi.wrap(chart);
+  }
 }
+
 
 class $CellApi implements $Instance {
   $CellApi.wrap(this.$value) : _superclass = $Object($value);
@@ -1243,3 +1450,959 @@ class $CellApi implements $Instance {
     return $String(value.toString());
   }
 }
+
+class $RangeApi implements $Instance {
+  $RangeApi.wrap(this.$value) : _superclass = $Object($value);
+
+  static const $type = BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RangeApi'));
+
+  static final $declaration = BridgeClassDef(
+    BridgeClassType($type, isAbstract: true),
+    constructors: const {},
+    methods: {
+      'setValues': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RangeApi')),
+          ),
+          params: const [
+            BridgeParameter(
+              'values',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(
+                  CoreTypes.list,
+                  [
+                    BridgeTypeAnnotation(
+                      BridgeTypeRef(
+                        CoreTypes.list,
+                        [
+                          BridgeTypeAnnotation(
+                            BridgeTypeRef(CoreTypes.dynamic),
+                            nullable: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
+      'setValue': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RangeApi')),
+          ),
+          params: const [
+            BridgeParameter(
+              'value',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.dynamic),
+                nullable: true,
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
+      'clear': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RangeApi')),
+          ),
+        ),
+      ),
+      'fillDown': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RangeApi')),
+          ),
+        ),
+      ),
+      'fillRight': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RangeApi')),
+          ),
+        ),
+      ),
+      'sortByColumn': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RangeApi')),
+          ),
+          params: const [
+            BridgeParameter(
+              'columnIndex',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.int),
+                nullable: true,
+              ),
+              true,
+            ),
+            BridgeParameter(
+              'ascending',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.bool),
+                nullable: true,
+              ),
+              true,
+            ),
+          ],
+        ),
+      ),
+      'formatAsNumber': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RangeApi')),
+          ),
+          params: const [
+            BridgeParameter(
+              'decimalDigits',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.int),
+                nullable: true,
+              ),
+              true,
+            ),
+          ],
+        ),
+      ),
+      'autoFit': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RangeApi')),
+          ),
+        ),
+      ),
+    },
+    getters: {
+      'rowCount': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.int),
+          ),
+        ),
+      ),
+      'columnCount': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.int),
+          ),
+        ),
+      ),
+      'lastResult': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.bool),
+          ),
+        ),
+      ),
+      'values': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(
+              CoreTypes.list,
+              [
+                BridgeTypeAnnotation(
+                  BridgeTypeRef(
+                    CoreTypes.list,
+                    [
+                      BridgeTypeAnnotation(
+                        BridgeTypeRef(CoreTypes.dynamic),
+                        nullable: true,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    },
+    wrap: true,
+  );
+
+  @override
+  final RangeApi $value;
+
+  final $Instance _superclass;
+
+  @override
+  RangeApi get $reified => $value;
+
+  @override
+  int $getRuntimeType(Runtime runtime) => runtime.lookupType($type.spec!);
+
+  @override
+  $Value? $getProperty(Runtime runtime, String identifier) {
+    switch (identifier) {
+      case 'rowCount':
+        return $int($value.rowCount);
+      case 'columnCount':
+        return $int($value.columnCount);
+      case 'lastResult':
+        return $bool($value.lastResult);
+      case 'values':
+        return _wrapMatrix($value.values);
+      case 'setValues':
+        return _setValues;
+      case 'setValue':
+        return _setValue;
+      case 'clear':
+        return _clearRange;
+      case 'fillDown':
+        return _fillDown;
+      case 'fillRight':
+        return _fillRight;
+      case 'sortByColumn':
+        return _sortByColumn;
+      case 'formatAsNumber':
+        return _formatAsNumber;
+      case 'autoFit':
+        return _autoFit;
+      default:
+        return _superclass.$getProperty(runtime, identifier);
+    }
+  }
+
+  @override
+  void $setProperty(Runtime runtime, String identifier, $Value value) {
+    _superclass.$setProperty(runtime, identifier, value);
+  }
+
+  static const $Function _setValues = $Function(_invokeSetValues);
+
+  static $Value? _invokeSetValues(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $RangeApi;
+    if (args.isEmpty) {
+      throw ArgumentError('setValues requiert une matrice.');
+    }
+    final matrixRaw = args[0];
+    final matrix = _reifyMatrix(matrixRaw);
+    final result = instance.$value.setValues(matrix);
+    return $RangeApi.wrap(result);
+  }
+
+  static const $Function _setValue = $Function(_invokeSetValue);
+
+  static $Value? _invokeSetValue(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $RangeApi;
+    final raw = args.isEmpty ? null : args[0]?.$reified;
+    final result = instance.$value.setValue(raw);
+    return $RangeApi.wrap(result);
+  }
+
+  static const $Function _clearRange = $Function(_invokeClearRange);
+
+  static $Value? _invokeClearRange(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $RangeApi;
+    final result = instance.$value.clear();
+    return $RangeApi.wrap(result);
+  }
+
+  static const $Function _fillDown = $Function(_invokeFillDown);
+
+  static $Value? _invokeFillDown(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $RangeApi;
+    final result = instance.$value.fillDown();
+    return $RangeApi.wrap(result);
+  }
+
+  static const $Function _fillRight = $Function(_invokeFillRight);
+
+  static $Value? _invokeFillRight(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $RangeApi;
+    final result = instance.$value.fillRight();
+    return $RangeApi.wrap(result);
+  }
+
+  static const $Function _sortByColumn = $Function(_invokeSortByColumn);
+
+  static $Value? _invokeSortByColumn(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $RangeApi;
+    var columnIndex = 0;
+    var ascending = true;
+    if (args.isNotEmpty) {
+      final rawIndex = args[0]?.$reified;
+      if (rawIndex != null) {
+        if (rawIndex is! int) {
+          throw ArgumentError('sortByColumn attend un entier pour columnIndex.');
+        }
+        columnIndex = rawIndex;
+      }
+    }
+    if (args.length > 1) {
+      final rawAscending = args[1]?.$reified;
+      if (rawAscending != null) {
+        if (rawAscending is! bool) {
+          throw ArgumentError('sortByColumn attend un booléen pour ascending.');
+        }
+        ascending = rawAscending;
+      }
+    }
+    final result = instance.$value.sortByColumn(columnIndex, ascending);
+    return $RangeApi.wrap(result);
+  }
+
+  static const $Function _formatAsNumber = $Function(_invokeFormatAsNumber);
+
+  static $Value? _invokeFormatAsNumber(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $RangeApi;
+    int? digits;
+    if (args.isNotEmpty) {
+      final rawDigits = args[0]?.$reified;
+      if (rawDigits != null) {
+        if (rawDigits is! int) {
+          throw ArgumentError('formatAsNumber attend un entier.');
+        }
+        digits = rawDigits;
+      }
+    }
+    final result = instance.$value.formatAsNumber(digits);
+    return $RangeApi.wrap(result);
+  }
+
+  static const $Function _autoFit = $Function(_invokeAutoFit);
+
+  static $Value? _invokeAutoFit(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $RangeApi;
+    final result = instance.$value.autoFit();
+    return $RangeApi.wrap(result);
+  }
+
+  static $Value _wrapMatrix(List<List<Object?>> matrix) {
+    return wrapList<List<Object?>>(
+      matrix,
+      (row) => wrapList<Object?>(
+        row,
+        (value) => $CellApi._wrapValue(value) ?? const $null(),
+      ),
+    );
+  }
+
+  static List<List<Object?>> _reifyMatrix($Value? matrixValue) {
+    final reified = matrixValue?.$reified;
+    if (reified is! List) {
+      throw ArgumentError('setValues attend une liste de listes.');
+    }
+    final matrix = <List<Object?>>[];
+    for (final row in reified) {
+      matrix.add($ScriptContext._reifyList(row));
+    }
+    return matrix;
+  }
+}
+
+class $RowApi implements $Instance {
+  $RowApi.wrap(this.$value) : _superclass = $Object($value);
+
+  static const $type = BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RowApi'));
+
+  static final $declaration = BridgeClassDef(
+    BridgeClassType($type, isAbstract: true),
+    constructors: const {},
+    methods: {
+      'setValues': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RowApi')),
+          ),
+          params: const [
+            BridgeParameter(
+              'values',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(
+                  CoreTypes.list,
+                  [
+                    BridgeTypeAnnotation(
+                      BridgeTypeRef(CoreTypes.dynamic),
+                      nullable: true,
+                    ),
+                  ],
+                ),
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
+      'fillRight': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RowApi')),
+          ),
+        ),
+      ),
+      'formatAsNumber': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RowApi')),
+          ),
+          params: const [
+            BridgeParameter(
+              'decimalDigits',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.int),
+                nullable: true,
+              ),
+              true,
+            ),
+          ],
+        ),
+      ),
+      'autoFit': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RowApi')),
+          ),
+        ),
+      ),
+      'asRange': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RangeApi')),
+          ),
+        ),
+      ),
+    },
+    getters: {
+      'index': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.int),
+          ),
+        ),
+      ),
+      'lastResult': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.bool),
+          ),
+        ),
+      ),
+      'values': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(
+              CoreTypes.list,
+              [
+                BridgeTypeAnnotation(
+                  BridgeTypeRef(CoreTypes.dynamic),
+                  nullable: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    },
+    wrap: true,
+  );
+
+  @override
+  final RowApi $value;
+
+  final $Instance _superclass;
+
+  @override
+  RowApi get $reified => $value;
+
+  @override
+  int $getRuntimeType(Runtime runtime) => runtime.lookupType($type.spec!);
+
+  @override
+  $Value? $getProperty(Runtime runtime, String identifier) {
+    switch (identifier) {
+      case 'index':
+        return $int($value.index);
+      case 'lastResult':
+        return $bool($value.lastResult);
+      case 'values':
+        return _wrapValues($value.values);
+      case 'setValues':
+        return _setValues;
+      case 'fillRight':
+        return _fillRight;
+      case 'formatAsNumber':
+        return _formatAsNumber;
+      case 'autoFit':
+        return _autoFit;
+      case 'asRange':
+        return _asRange;
+      default:
+        return _superclass.$getProperty(runtime, identifier);
+    }
+  }
+
+  @override
+  void $setProperty(Runtime runtime, String identifier, $Value value) {
+    _superclass.$setProperty(runtime, identifier, value);
+  }
+
+  static const $Function _setValues = $Function(_invokeSetValues);
+
+  static $Value? _invokeSetValues(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $RowApi;
+    if (args.isEmpty) {
+      throw ArgumentError('setValues requiert une liste.');
+    }
+    final values = $ScriptContext._reifyList(args[0]?.$reified);
+    final result = instance.$value.setValues(values);
+    return $RowApi.wrap(result);
+  }
+
+  static const $Function _fillRight = $Function(_invokeFillRight);
+
+  static $Value? _invokeFillRight(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $RowApi;
+    final result = instance.$value.fillRight();
+    return $RowApi.wrap(result);
+  }
+
+  static const $Function _formatAsNumber = $Function(_invokeFormatAsNumber);
+
+  static $Value? _invokeFormatAsNumber(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $RowApi;
+    int? digits;
+    if (args.isNotEmpty) {
+      final rawDigits = args[0]?.$reified;
+      if (rawDigits != null) {
+        if (rawDigits is! int) {
+          throw ArgumentError('formatAsNumber attend un entier.');
+        }
+        digits = rawDigits;
+      }
+    }
+    final result = instance.$value.formatAsNumber(digits);
+    return $RowApi.wrap(result);
+  }
+
+  static const $Function _autoFit = $Function(_invokeAutoFit);
+
+  static $Value? _invokeAutoFit(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $RowApi;
+    final result = instance.$value.autoFit();
+    return $RowApi.wrap(result);
+  }
+
+  static const $Function _asRange = $Function(_invokeAsRange);
+
+  static $Value? _invokeAsRange(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $RowApi;
+    final range = instance.$value.asRange();
+    return $RangeApi.wrap(range);
+  }
+
+  static $Value _wrapValues(List<Object?> values) {
+    return wrapList<Object?>(
+      values,
+      (value) => $CellApi._wrapValue(value) ?? const $null(),
+    );
+  }
+}
+
+class $ColumnApi implements $Instance {
+  $ColumnApi.wrap(this.$value) : _superclass = $Object($value);
+
+  static const $type = BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'ColumnApi'));
+
+  static final $declaration = BridgeClassDef(
+    BridgeClassType($type, isAbstract: true),
+    constructors: const {},
+    methods: {
+      'setValues': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'ColumnApi')),
+          ),
+          params: const [
+            BridgeParameter(
+              'values',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(
+                  CoreTypes.list,
+                  [
+                    BridgeTypeAnnotation(
+                      BridgeTypeRef(CoreTypes.dynamic),
+                      nullable: true,
+                    ),
+                  ],
+                ),
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
+      'fillDown': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'ColumnApi')),
+          ),
+        ),
+      ),
+      'formatAsNumber': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'ColumnApi')),
+          ),
+          params: const [
+            BridgeParameter(
+              'decimalDigits',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.int),
+                nullable: true,
+              ),
+              true,
+            ),
+          ],
+        ),
+      ),
+      'autoFit': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'ColumnApi')),
+          ),
+        ),
+      ),
+      'asRange': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RangeApi')),
+          ),
+        ),
+      ),
+    },
+    getters: {
+      'index': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.int),
+          ),
+        ),
+      ),
+      'lastResult': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.bool),
+          ),
+        ),
+      ),
+      'values': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(
+              CoreTypes.list,
+              [
+                BridgeTypeAnnotation(
+                  BridgeTypeRef(CoreTypes.dynamic),
+                  nullable: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    },
+    wrap: true,
+  );
+
+  @override
+  final ColumnApi $value;
+
+  final $Instance _superclass;
+
+  @override
+  ColumnApi get $reified => $value;
+
+  @override
+  int $getRuntimeType(Runtime runtime) => runtime.lookupType($type.spec!);
+
+  @override
+  $Value? $getProperty(Runtime runtime, String identifier) {
+    switch (identifier) {
+      case 'index':
+        return $int($value.index);
+      case 'lastResult':
+        return $bool($value.lastResult);
+      case 'values':
+        return _wrapValues($value.values);
+      case 'setValues':
+        return _setValues;
+      case 'fillDown':
+        return _fillDown;
+      case 'formatAsNumber':
+        return _formatAsNumber;
+      case 'autoFit':
+        return _autoFit;
+      case 'asRange':
+        return _asRange;
+      default:
+        return _superclass.$getProperty(runtime, identifier);
+    }
+  }
+
+  @override
+  void $setProperty(Runtime runtime, String identifier, $Value value) {
+    _superclass.$setProperty(runtime, identifier, value);
+  }
+
+  static const $Function _setValues = $Function(_invokeSetValues);
+
+  static $Value? _invokeSetValues(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $ColumnApi;
+    if (args.isEmpty) {
+      throw ArgumentError('setValues requiert une liste.');
+    }
+    final values = $ScriptContext._reifyList(args[0]?.$reified);
+    final result = instance.$value.setValues(values);
+    return $ColumnApi.wrap(result);
+  }
+
+  static const $Function _fillDown = $Function(_invokeFillDown);
+
+  static $Value? _invokeFillDown(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $ColumnApi;
+    final result = instance.$value.fillDown();
+    return $ColumnApi.wrap(result);
+  }
+
+  static const $Function _formatAsNumber = $Function(_invokeFormatAsNumber);
+
+  static $Value? _invokeFormatAsNumber(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $ColumnApi;
+    int? digits;
+    if (args.isNotEmpty) {
+      final rawDigits = args[0]?.$reified;
+      if (rawDigits != null) {
+        if (rawDigits is! int) {
+          throw ArgumentError('formatAsNumber attend un entier.');
+        }
+        digits = rawDigits;
+      }
+    }
+    final result = instance.$value.formatAsNumber(digits);
+    return $ColumnApi.wrap(result);
+  }
+
+  static const $Function _autoFit = $Function(_invokeAutoFit);
+
+  static $Value? _invokeAutoFit(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $ColumnApi;
+    final result = instance.$value.autoFit();
+    return $ColumnApi.wrap(result);
+  }
+
+  static const $Function _asRange = $Function(_invokeAsRange);
+
+  static $Value? _invokeAsRange(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $ColumnApi;
+    final range = instance.$value.asRange();
+    return $RangeApi.wrap(range);
+  }
+
+  static $Value _wrapValues(List<Object?> values) {
+    return wrapList<Object?>(
+      values,
+      (value) => $CellApi._wrapValue(value) ?? const $null(),
+    );
+  }
+}
+
+class $ChartApi implements $Instance {
+  $ChartApi.wrap(this.$value) : _superclass = $Object($value);
+
+  static const $type = BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'ChartApi'));
+
+  static final $declaration = BridgeClassDef(
+    BridgeClassType($type, isAbstract: true),
+    constructors: const {},
+    methods: {
+      'updateRange': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'ChartApi')),
+          ),
+          params: const [
+            BridgeParameter(
+              'range',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RangeApi')),
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
+      'describe': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(
+              CoreTypes.map,
+              [
+                BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.string)),
+                BridgeTypeAnnotation(
+                  BridgeTypeRef(CoreTypes.dynamic),
+                  nullable: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    },
+    getters: {
+      'range': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'RangeApi')),
+          ),
+        ),
+      ),
+    },
+    wrap: true,
+  );
+
+  @override
+  final ChartApi $value;
+
+  final $Instance _superclass;
+
+  @override
+  ChartApi get $reified => $value;
+
+  @override
+  int $getRuntimeType(Runtime runtime) => runtime.lookupType($type.spec!);
+
+  @override
+  $Value? $getProperty(Runtime runtime, String identifier) {
+    switch (identifier) {
+      case 'range':
+        return $RangeApi.wrap($value.range);
+      case 'updateRange':
+        return _updateRange;
+      case 'describe':
+        return _describe;
+      default:
+        return _superclass.$getProperty(runtime, identifier);
+    }
+  }
+
+  @override
+  void $setProperty(Runtime runtime, String identifier, $Value value) {
+    _superclass.$setProperty(runtime, identifier, value);
+  }
+
+  static const $Function _updateRange = $Function(_invokeUpdateRange);
+
+  static $Value? _invokeUpdateRange(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $ChartApi;
+    if (args.isEmpty) {
+      throw ArgumentError('updateRange requiert une plage.');
+    }
+    final raw = args[0];
+    if (raw is! $RangeApi) {
+      throw ArgumentError('updateRange attend un RangeApi.');
+    }
+    final chart = instance.$value.updateRange(raw.$value);
+    return $ChartApi.wrap(chart);
+  }
+
+  static const $Function _describe = $Function(_invokeDescribe);
+
+  static $Value? _invokeDescribe(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $ChartApi;
+    final description = instance.$value.describe();
+    return wrapMap<String, Object?>(
+      description,
+      (key) => $String(key),
+      (value) => $CellApi._wrapValue(value) ?? const $null(),
+    );
+  }
+}
+
