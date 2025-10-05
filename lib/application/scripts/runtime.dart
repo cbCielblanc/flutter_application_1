@@ -65,6 +65,22 @@ class ScriptRuntime {
     );
   }
 
+  Future<void> dispatchWorkbookBeforeSave({
+    bool saveAs = false,
+    bool isAutoSave = false,
+  }) async {
+    await _dispatch(
+      type: ScriptEventType.workbookBeforeSave,
+      pageKey: null,
+      additional: <String, Object?>{
+        'save': <String, Object?>{
+          'mode': saveAs ? 'saveAs' : 'save',
+          'auto': isAutoSave,
+        },
+      },
+    );
+  }
+
   Future<void> dispatchPageEnter(WorkbookPage page) async {
     await _dispatch(
       type: ScriptEventType.pageEnter,
@@ -81,6 +97,48 @@ class ScriptRuntime {
     );
   }
 
+  Future<void> dispatchWorksheetActivate({
+    required Sheet sheet,
+    Sheet? previousSheet,
+  }) async {
+    await _dispatch(
+      type: ScriptEventType.worksheetActivate,
+      pageKey: _pageKeyFor(sheet),
+      page: sheet,
+      sheet: sheet,
+      additional: <String, Object?>{
+        if (previousSheet != null)
+          'previousSheet': <String, Object?>{
+            'name': previousSheet.name,
+            'key': _pageKeyFor(previousSheet),
+            'rowCount': previousSheet.rowCount,
+            'columnCount': previousSheet.columnCount,
+          },
+      },
+    );
+  }
+
+  Future<void> dispatchWorksheetDeactivate({
+    required Sheet sheet,
+    Sheet? nextSheet,
+  }) async {
+    await _dispatch(
+      type: ScriptEventType.worksheetDeactivate,
+      pageKey: _pageKeyFor(sheet),
+      page: sheet,
+      sheet: sheet,
+      additional: <String, Object?>{
+        if (nextSheet != null)
+          'nextSheet': <String, Object?>{
+            'name': nextSheet.name,
+            'key': _pageKeyFor(nextSheet),
+            'rowCount': nextSheet.rowCount,
+            'columnCount': nextSheet.columnCount,
+          },
+      },
+    );
+  }
+
   Future<void> dispatchCellChanged({
     required Sheet sheet,
     required CellValueChange change,
@@ -91,11 +149,7 @@ class ScriptRuntime {
       page: sheet,
       sheet: sheet,
       additional: <String, Object?>{
-        'cell': <String, Object?>{
-          'label': change.position.label,
-          'row': change.position.row,
-          'column': change.position.column,
-        },
+        'cell': _serialiseCell(change.position),
         'change': <String, Object?>{
           'previousRaw': change.previousRaw,
           'previousDisplay': change.previousDisplay,
@@ -124,6 +178,7 @@ class ScriptRuntime {
           'currentRow': change.current?.row,
           'currentColumn': change.current?.column,
         },
+        'interaction': <String, Object?>{'type': 'selection'},
       },
     );
   }
@@ -138,6 +193,38 @@ class ScriptRuntime {
       page: page,
       additional: <String, Object?>{
         'notes': <String, Object?>{'content': content},
+      },
+    );
+  }
+
+  Future<void> dispatchWorksheetBeforeSingleClick({
+    required Sheet sheet,
+    required CellPosition position,
+  }) async {
+    await _dispatch(
+      type: ScriptEventType.worksheetBeforeSingleClick,
+      pageKey: _pageKeyFor(sheet),
+      page: sheet,
+      sheet: sheet,
+      additional: <String, Object?>{
+        'cell': _serialiseCell(position),
+        'interaction': <String, Object?>{'type': 'singleTap'},
+      },
+    );
+  }
+
+  Future<void> dispatchWorksheetBeforeDoubleClick({
+    required Sheet sheet,
+    required CellPosition position,
+  }) async {
+    await _dispatch(
+      type: ScriptEventType.worksheetBeforeDoubleClick,
+      pageKey: _pageKeyFor(sheet),
+      page: sheet,
+      sheet: sheet,
+      additional: <String, Object?>{
+        'cell': _serialiseCell(position),
+        'interaction': <String, Object?>{'type': 'doubleTap'},
       },
     );
   }
@@ -167,6 +254,18 @@ class ScriptRuntime {
       return;
     }
     final workbook = commandManager.workbook;
+    final enriched = <String, Object?>{...additional};
+    final meta = <String, Object?>{
+      'eventType': type.name,
+      'dispatchedAt': DateTime.now().toUtc().toIso8601String(),
+      if (pageKey != null) 'pageKey': pageKey,
+    };
+    if (enriched.containsKey('meta') &&
+        enriched['meta'] is Map<String, Object?>) {
+      final existing = enriched['meta'] as Map<String, Object?>;
+      meta.addAll(existing);
+    }
+    enriched['meta'] = meta;
     for (final script in scripts) {
       final context = ScriptContext(
         descriptor: script.descriptor,
@@ -177,7 +276,7 @@ class ScriptRuntime {
         page: page,
         sheet: sheet,
         navigatorBinding: _navigatorBinding,
-        additional: additional,
+        additional: enriched,
       );
       await _invokeCallback(script, type, context);
     }
@@ -237,16 +336,26 @@ class ScriptRuntime {
         return 'onWorkbookOpen';
       case ScriptEventType.workbookClose:
         return 'onWorkbookClose';
+      case ScriptEventType.workbookBeforeSave:
+        return 'onWorkbookBeforeSave';
       case ScriptEventType.pageEnter:
         return 'onPageEnter';
       case ScriptEventType.pageLeave:
         return 'onPageLeave';
+      case ScriptEventType.worksheetActivate:
+        return 'onWorksheetActivate';
+      case ScriptEventType.worksheetDeactivate:
+        return 'onWorksheetDeactivate';
       case ScriptEventType.cellChanged:
         return 'onCellChanged';
       case ScriptEventType.selectionChanged:
         return 'onSelectionChanged';
       case ScriptEventType.notesChanged:
         return 'onNotesChanged';
+      case ScriptEventType.worksheetBeforeSingleClick:
+        return 'onWorksheetBeforeSingleClick';
+      case ScriptEventType.worksheetBeforeDoubleClick:
+        return 'onWorksheetBeforeDoubleClick';
     }
   }
 
@@ -286,5 +395,13 @@ class ScriptRuntime {
 
   ScriptDescriptor _descriptorForPage(WorkbookPage page) {
     return ScriptDescriptor(scope: ScriptScope.page, key: _pageKeyFor(page));
+  }
+
+  Map<String, Object?> _serialiseCell(CellPosition position) {
+    return <String, Object?>{
+      'label': position.label,
+      'row': position.row,
+      'column': position.column,
+    };
   }
 }

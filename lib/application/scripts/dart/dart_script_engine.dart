@@ -242,11 +242,16 @@ const _apiLibraryUri = 'package:$_packageName/api.dart';
 const _supportedCallbacks = <String>{
   'onWorkbookOpen',
   'onWorkbookClose',
+  'onWorkbookBeforeSave',
   'onPageEnter',
   'onPageLeave',
+  'onWorksheetActivate',
+  'onWorksheetDeactivate',
   'onCellChanged',
   'onSelectionChanged',
   'onNotesChanged',
+  'onWorksheetBeforeSingleClick',
+  'onWorksheetBeforeDoubleClick',
   'onInvoke',
 };
 

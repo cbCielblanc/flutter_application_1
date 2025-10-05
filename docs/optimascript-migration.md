@@ -6,7 +6,7 @@ le nouveau format Dart (`*.dart`). Les administrateurs doivent :
 1. Renommer les fichiers personnalisés placés dans `scripts/` avec l'extension
    `.dart`.
 2. Adapter les fonctions au nouveau runtime en exposant des callbacks
-   `onWorkbookOpen`, `onPageEnter`, `onNotesChanged`, etc. Chaque callback reçoit
+   `onWorkbookOpen`, `onWorksheetActivate`, `onWorksheetBeforeDoubleClick`, etc. Chaque callback reçoit
    un `ScriptContext` et peut utiliser les APIs d'assistance (par exemple
    `ctx.logMessage`).
 3. Vérifier que les assets publiés dans `assets/scripts/**` pointent maintenant
@@ -36,6 +36,24 @@ sur le moteur de commandes existant.
 | `cell.setValue(value)` / `cell.clear()` | Écritures atomiques sur les cellules. |
 | `sheet.insertRow([index])` / `sheet.insertColumn([index])` | Insertion structurée dans la grille. |
 | `sheet.clear()` | Réinitialise l'ensemble d'une feuille. |
+
+### Nouveaux événements VBA pris en charge
+
+Les scripts peuvent désormais écouter les principaux événements du modèle objet
+Excel. Chaque fonction est optionnelle, retourne `FutureOr<void>` et reçoit un
+seul argument `ScriptContext`.
+
+| Callback | Signature recommandée | Déclenchement |
+| --- | --- | --- |
+| `onWorkbookBeforeSave` | `Future<void> onWorkbookBeforeSave(ScriptContext context)` | Avant toute sauvegarde du classeur (export manuel ou auto). |
+| `onWorksheetActivate` | `Future<void> onWorksheetActivate(ScriptContext context)` | Dès qu'une feuille devient active. |
+| `onWorksheetDeactivate` | `Future<void> onWorksheetDeactivate(ScriptContext context)` | Juste avant de quitter la feuille active. |
+| `onWorksheetBeforeSingleClick` | `Future<void> onWorksheetBeforeSingleClick(ScriptContext context)` | Au clic simple dans la grille (avant édition). |
+| `onWorksheetBeforeDoubleClick` | `Future<void> onWorksheetBeforeDoubleClick(ScriptContext context)` | Lors d'un double clic sur une cellule. |
+
+> Les callbacks historiques (`onWorkbookOpen`, `onPageEnter`, `onCellChanged`,
+> etc.) restent disponibles et continuent d'être invoqués avec les mêmes
+> structures de payload.
 
 ### Exemple rapide
 

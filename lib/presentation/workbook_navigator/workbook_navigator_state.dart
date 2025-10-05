@@ -265,10 +265,14 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
                       onPageChanged: (index) {
                         final currentWorkbook = _manager.workbook;
 
+                        Sheet? previousSheet;
                         if (_currentPageIndex >= 0 &&
                             _currentPageIndex < currentWorkbook.pages.length) {
                           final previousPage =
                               currentWorkbook.pages[_currentPageIndex];
+                          if (previousPage is Sheet) {
+                            previousSheet = previousPage;
+                          }
                           unawaited(_runtime.dispatchPageLeave(previousPage));
                         }
 
@@ -279,7 +283,23 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
                         if (index >= 0 && index < currentWorkbook.pages.length) {
                           final nextPage = currentWorkbook.pages[index];
                           unawaited(_runtime.ensurePageScript(nextPage));
+                          if (previousSheet != null) {
+                            unawaited(
+                              _runtime.dispatchWorksheetDeactivate(
+                                sheet: previousSheet,
+                                nextSheet: nextPage is Sheet ? nextPage : null,
+                              ),
+                            );
+                          }
                           unawaited(_runtime.dispatchPageEnter(nextPage));
+                          if (nextPage is Sheet) {
+                            unawaited(
+                              _runtime.dispatchWorksheetActivate(
+                                sheet: nextPage,
+                                previousSheet: previousSheet,
+                              ),
+                            );
+                          }
                           if (_isAdmin && _scriptEditorScope == ScriptScope.page) {
                             _scriptEditorPageName = nextPage.name;
                             unawaited(_loadScriptEditor());
@@ -328,6 +348,24 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
                                         selectionState: selectionState,
                                         rowCount: page.rowCount,
                                         columnCount: page.columnCount,
+                                        onCellTap: (position) {
+                                          unawaited(
+                                            _runtime
+                                                .dispatchWorksheetBeforeSingleClick(
+                                              sheet: page,
+                                              position: position,
+                                            ),
+                                          );
+                                        },
+                                        onCellDoubleTap: (position) {
+                                          unawaited(
+                                            _runtime
+                                                .dispatchWorksheetBeforeDoubleClick(
+                                              sheet: page,
+                                              position: position,
+                                            ),
+                                          );
+                                        },
                                       ),
                                     ),
                                   ),

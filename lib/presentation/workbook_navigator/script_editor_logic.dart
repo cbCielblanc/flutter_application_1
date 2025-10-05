@@ -139,6 +139,26 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
           '}\n',
         ),
       ),
+      CustomAction(
+        id: 'event_before_save',
+        label: 'WorkbookBeforeSave',
+        template: _normaliseCustomActionTemplate(
+          'Future<void> onWorkbookBeforeSave(ScriptContext context) async {\n'
+          '  final payload = context.toPayload();\n'
+          '  await context.logMessage(\'Sauvegarde imminente : \${payload[\"meta\"]}\');\n'
+          '}\n',
+        ),
+      ),
+      CustomAction(
+        id: 'event_double_click',
+        label: 'WorksheetBeforeDoubleClick',
+        template: _normaliseCustomActionTemplate(
+          'Future<void> onWorksheetBeforeDoubleClick(ScriptContext context) async {\n'
+          '  final cell = context.toPayload()[\'cell\'] as Map<String, Object?>?;\n'
+          '  await context.logMessage(\'Double clic sur \${cell?[\'label\'] ?? \"?\"}\');\n'
+          '}\n',
+        ),
+      ),
     ]);
   }
 
