@@ -63,7 +63,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/scripts/
+    # OptimaScript modules désormais fournis en Dart.
+    - assets/scripts/global/
+    - assets/scripts/pages/
+    - assets/scripts/shared/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
