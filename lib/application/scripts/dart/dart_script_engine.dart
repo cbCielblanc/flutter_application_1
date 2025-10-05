@@ -13,9 +13,18 @@ typedef DartHostFunction = FutureOr<void> Function(
 
 /// Registry exposing host functions to scripts.
 class DartBindingHost {
-  const DartBindingHost({
+  static const DartBindingHost empty = DartBindingHost._(<String, DartHostFunction>{});
+
+  const DartBindingHost._(this._functions);
+
+  factory DartBindingHost({
     Map<String, DartHostFunction> functions = const <String, DartHostFunction>{},
-  }) : _functions = Map.unmodifiable(functions);
+  }) {
+    if (functions.isEmpty) {
+      return empty;
+    }
+    return DartBindingHost._(Map.unmodifiable(functions));
+  }
 
   final Map<String, DartHostFunction> _functions;
 
@@ -48,7 +57,7 @@ class DartScriptExport {
 
 /// Container for the compiled representation of a script.
 class DartScriptModule {
-  const DartScriptModule({
+  DartScriptModule({
     required this.descriptor,
     required this.source,
     required Map<String, DartScriptExport> exports,
@@ -77,7 +86,7 @@ class DartScriptCompilationException implements Exception {
 /// Interpreter for OptimaScript modules written in a declarative JSON DSL.
 class DartScriptEngine {
   const DartScriptEngine({DartBindingHost? bindingHost})
-      : _bindingHost = bindingHost ?? const DartBindingHost();
+      : _bindingHost = bindingHost ?? DartBindingHost.empty;
 
   final DartBindingHost _bindingHost;
 
