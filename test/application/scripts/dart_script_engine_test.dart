@@ -1,11 +1,10 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:flutter_application_1/application/commands/workbook_command_manager.dart';
 import 'package:flutter_application_1/application/scripts/context.dart';
 import 'package:flutter_application_1/application/scripts/dart/dart_script_engine.dart';
 import 'package:flutter_application_1/application/scripts/models.dart';
 import 'package:flutter_application_1/domain/sheet.dart';
 import 'package:flutter_application_1/domain/workbook.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('DartScriptEngine', () {
@@ -23,11 +22,26 @@ void main() {
       );
 
       const source = '''
-{
-  "onWorkbookOpen": [
-    {"call": "capture", "args": ["bonjour"]},
-    {"call": "capture", "args": ["monde"]}
-  ]
+import 'package:optimascript/api.dart';
+
+Future<void> onWorkbookOpen(ScriptContext context) async {
+  final values = <String>['bonjour', 'monde', 'optima'];
+  for (final value in values) {
+    if (value.startsWith('o')) {
+      await context.callHost(
+        'capture',
+        positional: <Object?>['special:' + value],
+      );
+    } else {
+      await context.callHost(
+        'capture',
+        positional: <Object?>[value],
+      );
+    }
+  }
+  if (values.length == 3) {
+    await context.logMessage('ctx:complete');
+  }
 }
 ''';
 
@@ -45,7 +59,7 @@ void main() {
       expect(module.exportNames, contains('onWorkbookOpen'));
       final signature = module.signatureFor('onWorkbookOpen');
       expect(signature, isNotNull);
-      expect(signature!.hostFunctions, containsAll(<String>['capture']));
+      expect(signature!.isAsync, isTrue);
       final export = module['onWorkbookOpen'];
       expect(export, isNotNull);
 
@@ -70,24 +84,51 @@ void main() {
         calls,
         <String>[
           'workbook.open:bonjour',
-          'log:ctx:bonjour',
           'workbook.open:monde',
-          'log:ctx:monde',
+          'workbook.open:special:optima',
+          'log:ctx:complete',
         ],
       );
     });
 
-    test('throws when using an unknown host function', () async {
+    test('throws when invoking an unknown host function', () async {
       const descriptor = ScriptDescriptor(
         scope: ScriptScope.global,
         key: 'invalid',
       );
-      const source = '{"onWorkbookOpen": {"call": "unknown"}}';
+      const source = '''
+import 'package:optimascript/api.dart';
+
+Future<void> onWorkbookOpen(ScriptContext context) async {
+  await context.callHost('unknown');
+}
+''';
       final engine = DartScriptEngine();
 
-      expect(
-        () => engine.loadModule(descriptor: descriptor, source: source),
-        throwsA(isA<DartScriptCompilationException>()),
+      final module = await engine.loadModule(
+        descriptor: descriptor,
+        source: source,
+      );
+      final export = module['onWorkbookOpen'];
+      expect(export, isNotNull);
+
+      final workbook = Workbook(
+        pages: [
+          Sheet.fromRows(name: 'Feuille 1', rows: const [<Object?>[null]]),
+        ],
+      );
+      final manager = WorkbookCommandManager(initialWorkbook: workbook);
+      final context = ScriptContext(
+        descriptor: descriptor,
+        eventType: ScriptEventType.workbookOpen,
+        workbook: workbook,
+        commandManager: manager,
+        log: (_) {},
+      );
+
+      await expectLater(
+        () => export!.call(context),
+        throwsA(isA<StateError>()),
       );
     });
   });

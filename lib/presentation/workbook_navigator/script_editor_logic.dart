@@ -589,33 +589,33 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
     switch (descriptor.scope) {
       case ScriptScope.global:
         return '''
-import 'package:flutter_application_1/application/scripts/context.dart';
+import 'package:optimascript/api.dart';
 
-void onWorkbookOpen(ScriptContext ctx) async {
+Future<void> onWorkbookOpen(ScriptContext ctx) async {
   await ctx.logMessage('Classeur chargé.');
 }
 
-void onWorkbookClose(ScriptContext ctx) async {
+Future<void> onWorkbookClose(ScriptContext ctx) async {
   await ctx.logMessage('Classeur fermé.');
 }
 ''';
       case ScriptScope.page:
         return '''
-import 'package:flutter_application_1/application/scripts/context.dart';
+import 'package:optimascript/api.dart';
 
-void onPageEnter(ScriptContext ctx) async {
+Future<void> onPageEnter(ScriptContext ctx) async {
   await ctx.logMessage('Entrée sur la page ${descriptor.key}.');
 }
 
-void onPageLeave(ScriptContext ctx) async {
+Future<void> onPageLeave(ScriptContext ctx) async {
   await ctx.logMessage('Sortie de la page ${descriptor.key}.');
 }
 ''';
       case ScriptScope.shared:
         return '''
-import 'package:flutter_application_1/application/scripts/context.dart';
+import 'package:optimascript/api.dart';
 
-void onInvoke(ScriptContext ctx) async {
+Future<void> onInvoke(ScriptContext ctx) async {
   await ctx.logMessage('Utilitaire exécuté.');
 }
 ''';

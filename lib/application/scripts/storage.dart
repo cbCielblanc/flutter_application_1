@@ -420,6 +420,8 @@ class ScriptStorage {
       module = DartScriptModule(
         descriptor: descriptor,
         source: source,
+        libraryUri: _libraryUriFor(descriptor),
+        runtime: null,
         exports: const <String, DartScriptExport>{},
         signatures: const <String, DartScriptSignature>{},
       );
@@ -439,6 +441,8 @@ class ScriptStorage {
       module = DartScriptModule(
         descriptor: descriptor,
         source: source,
+        libraryUri: _libraryUriFor(descriptor),
+        runtime: null,
         exports: const <String, DartScriptExport>{},
         signatures: const <String, DartScriptSignature>{},
       );
@@ -464,6 +468,10 @@ class ScriptStorage {
 
   String _cacheKey(ScriptDescriptor descriptor) =>
       '${descriptor.scope.name}:${descriptor.key}';
+
+  String _libraryUriFor(ScriptDescriptor descriptor) {
+    return 'package:optimascript/${descriptor.fileName}';
+  }
 }
 
 class _CachedDocument {
