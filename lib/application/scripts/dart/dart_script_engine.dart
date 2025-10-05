@@ -3,7 +3,9 @@ import 'package:dart_eval/dart_eval.dart';
 import 'package:dart_eval/dart_eval_bridge.dart';
 import 'package:dart_eval/stdlib/core.dart';
 import 'package:dart_eval/src/eval/compiler/errors.dart';
+import 'package:dart_eval/src/eval/utils/wrap_helper.dart';
 
+import '../api/api.dart';
 import '../context.dart';
 import '../descriptor.dart';
 
@@ -165,6 +167,18 @@ class DartScriptEngine {
           ? $ScriptContext.wrap(value, _bindingHost)
           : null,
     );
+    runtime.addTypeAutowrapper(
+      (value) => value is ScriptApi ? $ScriptApi.wrap(value) : null,
+    );
+    runtime.addTypeAutowrapper(
+      (value) => value is WorkbookApi ? $WorkbookApi.wrap(value) : null,
+    );
+    runtime.addTypeAutowrapper(
+      (value) => value is SheetApi ? $SheetApi.wrap(value) : null,
+    );
+    runtime.addTypeAutowrapper(
+      (value) => value is CellApi ? $CellApi.wrap(value) : null,
+    );
 
     final exports = <String, DartScriptExport>{};
     final signatures = <String, DartScriptSignature>{};
@@ -238,12 +252,55 @@ library optimascript.api;
 import 'dart:async';
 
 abstract class ScriptContext {
+  ScriptApi get api;
   FutureOr<void> logMessage(String message);
   FutureOr<void> callHost(
     String name, {
     List<Object?> positional = const <Object?>[],
     Map<String, Object?>? named,
   });
+}
+
+abstract class ScriptApi {
+  WorkbookApi get workbook;
+}
+
+abstract class WorkbookApi {
+  List<String> get sheetNames;
+  int get activeSheetIndex;
+  SheetApi? get activeSheet;
+
+  SheetApi? sheetByName(String name);
+  SheetApi? sheetAt(int index);
+  bool activateSheetByName(String name);
+  bool activateSheetAt(int index);
+}
+
+abstract class SheetApi {
+  String get name;
+  int get rowCount;
+  int get columnCount;
+
+  bool activate();
+  CellApi cellAt(int row, int column);
+  CellApi? cellByLabel(String label);
+  bool insertRow([int? index]);
+  bool insertColumn([int? index]);
+  bool clear();
+}
+
+abstract class CellApi {
+  String get sheetName;
+  int get row;
+  int get column;
+  String get label;
+  Object? get value;
+  String get text;
+  bool get isEmpty;
+  String get type;
+
+  bool setValue(Object? value);
+  bool clear();
 }
 ''';
 
@@ -258,6 +315,10 @@ class _OptimaScriptPlugin implements EvalPlugin {
   @override
   void configureForCompile(BridgeDeclarationRegistry registry) {
     registry.defineBridgeClass($ScriptContext.$declaration);
+    registry.defineBridgeClass($ScriptApi.$declaration);
+    registry.defineBridgeClass($WorkbookApi.$declaration);
+    registry.defineBridgeClass($SheetApi.$declaration);
+    registry.defineBridgeClass($CellApi.$declaration);
   }
 
   @override
@@ -266,6 +327,18 @@ class _OptimaScriptPlugin implements EvalPlugin {
       (value) => value is ScriptContext
           ? $ScriptContext.wrap(value, _bindingHost)
           : null,
+    );
+    runtime.addTypeAutowrapper(
+      (value) => value is ScriptApi ? $ScriptApi.wrap(value) : null,
+    );
+    runtime.addTypeAutowrapper(
+      (value) => value is WorkbookApi ? $WorkbookApi.wrap(value) : null,
+    );
+    runtime.addTypeAutowrapper(
+      (value) => value is SheetApi ? $SheetApi.wrap(value) : null,
+    );
+    runtime.addTypeAutowrapper(
+      (value) => value is CellApi ? $CellApi.wrap(value) : null,
     );
   }
 }
@@ -332,6 +405,15 @@ class $ScriptContext implements $Instance {
         ),
       ),
     },
+    getters: {
+      'api': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'ScriptApi')),
+          ),
+        ),
+      ),
+    },
     wrap: true,
   );
 
@@ -354,6 +436,8 @@ class $ScriptContext implements $Instance {
         return _logMessage;
       case 'callHost':
         return _callHost;
+      case 'api':
+        return $ScriptApi.wrap($value.api);
       default:
         return _superclass.$getProperty(runtime, identifier);
     }
@@ -430,5 +514,752 @@ class $ScriptContext implements $Instance {
       return result;
     }
     return null;
+  }
+}
+
+class $ScriptApi implements $Instance {
+  $ScriptApi.wrap(this.$value) : _superclass = $Object($value);
+
+  static const $type = BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'ScriptApi'));
+
+  static final $declaration = BridgeClassDef(
+    BridgeClassType($type, isAbstract: true),
+    constructors: const {},
+    methods: const {},
+    getters: {
+      'workbook': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'WorkbookApi')),
+          ),
+        ),
+      ),
+    },
+    wrap: true,
+  );
+
+  @override
+  final ScriptApi $value;
+
+  final $Instance _superclass;
+
+  @override
+  ScriptApi get $reified => $value;
+
+  @override
+  int $getRuntimeType(Runtime runtime) => runtime.lookupType($type.spec!);
+
+  @override
+  $Value? $getProperty(Runtime runtime, String identifier) {
+    switch (identifier) {
+      case 'workbook':
+        return $WorkbookApi.wrap($value.workbook);
+      default:
+        return _superclass.$getProperty(runtime, identifier);
+    }
+  }
+
+  @override
+  void $setProperty(Runtime runtime, String identifier, $Value value) {
+    _superclass.$setProperty(runtime, identifier, value);
+  }
+}
+
+class $WorkbookApi implements $Instance {
+  $WorkbookApi.wrap(this.$value) : _superclass = $Object($value);
+
+  static const $type = BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'WorkbookApi'));
+
+  static final $declaration = BridgeClassDef(
+    BridgeClassType($type, isAbstract: true),
+    constructors: const {},
+    methods: {
+      'sheetByName': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'SheetApi')),
+            nullable: true,
+          ),
+          params: const [
+            BridgeParameter(
+              'name',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.string),
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
+      'sheetAt': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'SheetApi')),
+            nullable: true,
+          ),
+          params: const [
+            BridgeParameter(
+              'index',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.int),
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
+      'activateSheetByName': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.bool),
+          ),
+          params: const [
+            BridgeParameter(
+              'name',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.string),
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
+      'activateSheetAt': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.bool),
+          ),
+          params: const [
+            BridgeParameter(
+              'index',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.int),
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
+    },
+    getters: {
+      'sheetNames': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(
+              CoreTypes.list,
+              [
+                BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.string)),
+              ],
+            ),
+          ),
+        ),
+      ),
+      'activeSheetIndex': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.int),
+          ),
+        ),
+      ),
+      'activeSheet': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'SheetApi')),
+            nullable: true,
+          ),
+        ),
+      ),
+    },
+    wrap: true,
+  );
+
+  @override
+  final WorkbookApi $value;
+
+  final $Instance _superclass;
+
+  @override
+  WorkbookApi get $reified => $value;
+
+  @override
+  int $getRuntimeType(Runtime runtime) => runtime.lookupType($type.spec!);
+
+  @override
+  $Value? $getProperty(Runtime runtime, String identifier) {
+    switch (identifier) {
+      case 'sheetNames':
+        return wrapList<String>(
+          $value.sheetNames,
+          (element) => $String(element),
+        );
+      case 'activeSheetIndex':
+        return $int($value.activeSheetIndex);
+      case 'activeSheet':
+        final sheet = $value.activeSheet;
+        return sheet == null ? const $null() : $SheetApi.wrap(sheet);
+      case 'sheetByName':
+        return _sheetByName;
+      case 'sheetAt':
+        return _sheetAt;
+      case 'activateSheetByName':
+        return _activateByName;
+      case 'activateSheetAt':
+        return _activateAt;
+      default:
+        return _superclass.$getProperty(runtime, identifier);
+    }
+  }
+
+  @override
+  void $setProperty(Runtime runtime, String identifier, $Value value) {
+    _superclass.$setProperty(runtime, identifier, value);
+  }
+
+  static const $Function _sheetByName = $Function(_invokeSheetByName);
+
+  static $Value? _invokeSheetByName(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $WorkbookApi;
+    final raw = args.isEmpty ? null : args[0]?.$reified;
+    if (raw == null) {
+      throw ArgumentError('sheetByName requiert un nom.');
+    }
+    final sheet = instance.$value.sheetByName(raw.toString());
+    return sheet == null ? const $null() : $SheetApi.wrap(sheet);
+  }
+
+  static const $Function _sheetAt = $Function(_invokeSheetAt);
+
+  static $Value? _invokeSheetAt(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $WorkbookApi;
+    final raw = args.isEmpty ? null : args[0]?.$reified;
+    if (raw is! int) {
+      throw ArgumentError('sheetAt requiert un index entier.');
+    }
+    final sheet = instance.$value.sheetAt(raw);
+    return sheet == null ? const $null() : $SheetApi.wrap(sheet);
+  }
+
+  static const $Function _activateByName = $Function(_invokeActivateByName);
+
+  static $Value? _invokeActivateByName(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $WorkbookApi;
+    final raw = args.isEmpty ? null : args[0]?.$reified;
+    if (raw == null) {
+      throw ArgumentError('activateSheetByName requiert un nom.');
+    }
+    final result = instance.$value.activateSheetByName(raw.toString());
+    return $bool(result);
+  }
+
+  static const $Function _activateAt = $Function(_invokeActivateAt);
+
+  static $Value? _invokeActivateAt(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $WorkbookApi;
+    final raw = args.isEmpty ? null : args[0]?.$reified;
+    if (raw is! int) {
+      throw ArgumentError('activateSheetAt requiert un index entier.');
+    }
+    final result = instance.$value.activateSheetAt(raw);
+    return $bool(result);
+  }
+}
+
+class $SheetApi implements $Instance {
+  $SheetApi.wrap(this.$value) : _superclass = $Object($value);
+
+  static const $type = BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'SheetApi'));
+
+  static final $declaration = BridgeClassDef(
+    BridgeClassType($type, isAbstract: true),
+    constructors: const {},
+    methods: {
+      'activate': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.bool),
+          ),
+        ),
+      ),
+      'cellAt': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'CellApi')),
+          ),
+          params: const [
+            BridgeParameter(
+              'row',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.int),
+              ),
+              false,
+            ),
+            BridgeParameter(
+              'column',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.int),
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
+      'cellByLabel': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'CellApi')),
+            nullable: true,
+          ),
+          params: const [
+            BridgeParameter(
+              'label',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.string),
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
+      'insertRow': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.bool),
+          ),
+          params: const [
+            BridgeParameter(
+              'index',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.int),
+                nullable: true,
+              ),
+              true,
+            ),
+          ],
+        ),
+      ),
+      'insertColumn': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.bool),
+          ),
+          params: const [
+            BridgeParameter(
+              'index',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.int),
+                nullable: true,
+              ),
+              true,
+            ),
+          ],
+        ),
+      ),
+      'clear': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.bool),
+          ),
+        ),
+      ),
+    },
+    getters: {
+      'name': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.string),
+          ),
+        ),
+      ),
+      'rowCount': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.int),
+          ),
+        ),
+      ),
+      'columnCount': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.int),
+          ),
+        ),
+      ),
+    },
+    wrap: true,
+  );
+
+  @override
+  final SheetApi $value;
+
+  final $Instance _superclass;
+
+  @override
+  SheetApi get $reified => $value;
+
+  @override
+  int $getRuntimeType(Runtime runtime) => runtime.lookupType($type.spec!);
+
+  @override
+  $Value? $getProperty(Runtime runtime, String identifier) {
+    switch (identifier) {
+      case 'name':
+        return $String($value.name);
+      case 'rowCount':
+        return $int($value.rowCount);
+      case 'columnCount':
+        return $int($value.columnCount);
+      case 'activate':
+        return _activate;
+      case 'cellAt':
+        return _cellAt;
+      case 'cellByLabel':
+        return _cellByLabel;
+      case 'insertRow':
+        return _insertRow;
+      case 'insertColumn':
+        return _insertColumn;
+      case 'clear':
+        return _clear;
+      default:
+        return _superclass.$getProperty(runtime, identifier);
+    }
+  }
+
+  @override
+  void $setProperty(Runtime runtime, String identifier, $Value value) {
+    _superclass.$setProperty(runtime, identifier, value);
+  }
+
+  static const $Function _activate = $Function(_invokeActivate);
+
+  static $Value? _invokeActivate(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $SheetApi;
+    final result = instance.$value.activate();
+    return $bool(result);
+  }
+
+  static const $Function _cellAt = $Function(_invokeCellAt);
+
+  static $Value? _invokeCellAt(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $SheetApi;
+    if (args.length < 2) {
+      throw ArgumentError('cellAt requiert une ligne et une colonne.');
+    }
+    final rowRaw = args[0]?.$reified;
+    final columnRaw = args[1]?.$reified;
+    if (rowRaw is! int || columnRaw is! int) {
+      throw ArgumentError('cellAt attend des index entiers.');
+    }
+    final cell = instance.$value.cellAt(rowRaw, columnRaw);
+    return $CellApi.wrap(cell);
+  }
+
+  static const $Function _cellByLabel = $Function(_invokeCellByLabel);
+
+  static $Value? _invokeCellByLabel(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $SheetApi;
+    final raw = args.isEmpty ? null : args[0]?.$reified;
+    if (raw == null) {
+      throw ArgumentError('cellByLabel requiert un libellé.');
+    }
+    final cell = instance.$value.cellByLabel(raw.toString());
+    return cell == null ? const $null() : $CellApi.wrap(cell);
+  }
+
+  static const $Function _insertRow = $Function(_invokeInsertRow);
+
+  static $Value? _invokeInsertRow(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $SheetApi;
+    final raw = args.isEmpty ? null : args[0]?.$reified;
+    int? index;
+    if (raw != null) {
+      if (raw is int) {
+        index = raw;
+      } else {
+        throw ArgumentError('insertRow attend un entier ou null.');
+      }
+    }
+    final result = instance.$value.insertRow(index);
+    return $bool(result);
+  }
+
+  static const $Function _insertColumn = $Function(_invokeInsertColumn);
+
+  static $Value? _invokeInsertColumn(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $SheetApi;
+    final raw = args.isEmpty ? null : args[0]?.$reified;
+    int? index;
+    if (raw != null) {
+      if (raw is int) {
+        index = raw;
+      } else {
+        throw ArgumentError('insertColumn attend un entier ou null.');
+      }
+    }
+    final result = instance.$value.insertColumn(index);
+    return $bool(result);
+  }
+
+  static const $Function _clear = $Function(_invokeClear);
+
+  static $Value? _invokeClear(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $SheetApi;
+    final result = instance.$value.clear();
+    return $bool(result);
+  }
+
+  @override
+  $Value? $invoke(Runtime runtime, String identifier, List<$Value?> args) {
+    switch (identifier) {
+      case 'activate':
+        return _activate.call(runtime, this, args);
+      case 'cellAt':
+        return _cellAt.call(runtime, this, args);
+      case 'cellByLabel':
+        return _cellByLabel.call(runtime, this, args);
+      case 'insertRow':
+        return _insertRow.call(runtime, this, args);
+      case 'insertColumn':
+        return _insertColumn.call(runtime, this, args);
+      case 'clear':
+        return _clear.call(runtime, this, args);
+    }
+    return _superclass.$invoke(runtime, identifier, args);
+  }
+}
+
+class $CellApi implements $Instance {
+  $CellApi.wrap(this.$value) : _superclass = $Object($value);
+
+  static const $type = BridgeTypeRef(BridgeTypeSpec(_apiLibraryUri, 'CellApi'));
+
+  static final $declaration = BridgeClassDef(
+    BridgeClassType($type, isAbstract: true),
+    constructors: const {},
+    methods: {
+      'setValue': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.bool),
+          ),
+          params: const [
+            BridgeParameter(
+              'value',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.dynamic),
+                nullable: true,
+              ),
+              false,
+            ),
+          ],
+        ),
+      ),
+      'clear': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.bool),
+          ),
+        ),
+      ),
+    },
+    getters: {
+      'sheetName': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.string),
+          ),
+        ),
+      ),
+      'row': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.int),
+          ),
+        ),
+      ),
+      'column': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.int),
+          ),
+        ),
+      ),
+      'label': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.string),
+          ),
+        ),
+      ),
+      'value': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.dynamic),
+            nullable: true,
+          ),
+        ),
+      ),
+      'text': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.string),
+          ),
+        ),
+      ),
+      'isEmpty': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.bool),
+          ),
+        ),
+      ),
+      'type': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.string),
+          ),
+        ),
+      ),
+    },
+    wrap: true,
+  );
+
+  @override
+  final CellApi $value;
+
+  final $Instance _superclass;
+
+  @override
+  CellApi get $reified => $value;
+
+  @override
+  int $getRuntimeType(Runtime runtime) => runtime.lookupType($type.spec!);
+
+  @override
+  $Value? $getProperty(Runtime runtime, String identifier) {
+    switch (identifier) {
+      case 'sheetName':
+        return $String($value.sheetName);
+      case 'row':
+        return $int($value.row);
+      case 'column':
+        return $int($value.column);
+      case 'label':
+        return $String($value.label);
+      case 'value':
+        return _wrapValue($value.value);
+      case 'text':
+        return $String($value.text);
+      case 'isEmpty':
+        return $bool($value.isEmpty);
+      case 'type':
+        return $String($value.type);
+      case 'setValue':
+        return _setValue;
+      case 'clear':
+        return _clear;
+      default:
+        return _superclass.$getProperty(runtime, identifier);
+    }
+  }
+
+  @override
+  void $setProperty(Runtime runtime, String identifier, $Value value) {
+    _superclass.$setProperty(runtime, identifier, value);
+  }
+
+  static const $Function _setValue = $Function(_invokeSetValue);
+
+  static $Value? _invokeSetValue(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $CellApi;
+    final raw = args.isEmpty ? null : args[0]?.$reified;
+    final result = instance.$value.setValue(raw);
+    return $bool(result);
+  }
+
+  static const $Function _clear = $Function(_invokeClearCell);
+
+  static $Value? _invokeClearCell(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $CellApi;
+    final result = instance.$value.clear();
+    return $bool(result);
+  }
+
+  @override
+  $Value? $invoke(Runtime runtime, String identifier, List<$Value?> args) {
+    switch (identifier) {
+      case 'setValue':
+        return _setValue.call(runtime, this, args);
+      case 'clear':
+        return _clear.call(runtime, this, args);
+    }
+    return _superclass.$invoke(runtime, identifier, args);
+  }
+
+  static $Value? _wrapValue(Object? value) {
+    if (value == null) {
+      return const $null();
+    }
+    if (value is bool) {
+      return $bool(value);
+    }
+    if (value is int) {
+      return $int(value);
+    }
+    if (value is double) {
+      return $double(value);
+    }
+    if (value is num) {
+      return $double(value.toDouble());
+    }
+    return $String(value.toString());
   }
 }
