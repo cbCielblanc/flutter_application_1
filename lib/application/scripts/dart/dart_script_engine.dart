@@ -113,7 +113,11 @@ class DartScriptCompilationException implements Exception {
   String toString() => message;
 }
 
-/// Interpreter for OptimaScript modules written in a declarative JSON DSL.
+/// Loader and compiler for OptimaScript Dart modules executed through
+/// `dart_eval`, responsible for preparing the runtime.
+///
+/// Injects the `optimascript/api.dart` stub and registers the supported
+/// callbacks so that the host environment and scripts share the same contract.
 class DartScriptEngine {
   const DartScriptEngine({DartBindingHost? bindingHost})
       : _bindingHost = bindingHost ?? DartBindingHost.empty;
