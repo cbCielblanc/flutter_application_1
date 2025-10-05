@@ -1,9 +1,11 @@
 import 'package:meta/meta.dart';
 
-import 'python/python_script_engine.dart';
+import 'dart/dart_script_engine.dart';
+import 'descriptor.dart';
 import 'scope.dart';
 
 export 'scope.dart';
+export 'descriptor.dart';
 
 @immutable
 class ScriptDocument {
@@ -18,16 +20,16 @@ class ScriptDocument {
   final String id;
   final String name;
   final ScriptScope scope;
-  final PythonScriptModule module;
-  final Map<String, PythonScriptExport> exports;
+  final DartScriptModule module;
+  final Map<String, DartScriptExport> exports;
 
   Iterable<String> get exportNames => exports.keys;
 
-  PythonScriptExport? operator [](String name) => exports[name];
+  DartScriptExport? operator [](String name) => exports[name];
 
   ScriptDocument copyWith({
-    PythonScriptModule? module,
-    Map<String, PythonScriptExport>? exports,
+    DartScriptModule? module,
+    Map<String, DartScriptExport>? exports,
   }) {
     return ScriptDocument(
       id: id,
@@ -89,47 +91,4 @@ extension ScriptEventTypeLabel on ScriptEventType {
         throw ArgumentError('Evenement inconnu: $value');
     }
   }
-}
-
-@immutable
-class ScriptDescriptor {
-  const ScriptDescriptor({required this.scope, required this.key});
-
-  final ScriptScope scope;
-  final String key;
-
-  String get fileName {
-    switch (scope) {
-      case ScriptScope.global:
-        return 'global/$key.py';
-      case ScriptScope.page:
-        return 'pages/$key.py';
-      case ScriptScope.shared:
-        return 'shared/$key.py';
-    }
-  }
-}
-
-String normaliseScriptKey(String input) {
-  final buffer = StringBuffer();
-  final lowered = input.trim().toLowerCase();
-  var previousWasSeparator = true;
-  for (final rune in lowered.runes) {
-    final char = String.fromCharCode(rune);
-    final isAllowed = RegExp(r'[a-z0-9]').hasMatch(char);
-    if (isAllowed) {
-      buffer.write(char);
-      previousWasSeparator = false;
-    } else if (!previousWasSeparator) {
-      buffer.write('_');
-      previousWasSeparator = true;
-    }
-  }
-  var result = buffer.toString();
-  result = result.replaceAll(RegExp(r'_+'), '_');
-  result = result.replaceAll(RegExp(r'^_|_$'), '');
-  if (result.isEmpty) {
-    return 'script';
-  }
-  return result;
 }

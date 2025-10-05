@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:python_ffi_dart/python_ffi_dart.dart';
 
 import '../../domain/notes_page.dart';
 import '../../domain/sheet.dart';
@@ -194,12 +193,7 @@ class ScriptRuntime {
       return;
     }
     try {
-      await export.invoke<Object?>(<Object?>[context.toPayload()]);
-    } on PythonFfiException catch (error, stackTrace) {
-      await _logSink(
-        'Erreur lors de l\'appel $callbackName sur ${script.descriptor.key}: $error',
-      );
-      debugPrintStack(stackTrace: stackTrace);
+      await export.call(context);
     } catch (error, stackTrace) {
       await _logSink(
         'Exception inattendue dans $callbackName (${script.descriptor.key}): $error',
@@ -211,19 +205,19 @@ class ScriptRuntime {
   String _callbackName(ScriptEventType type) {
     switch (type) {
       case ScriptEventType.workbookOpen:
-        return 'on_workbook_open';
+        return 'onWorkbookOpen';
       case ScriptEventType.workbookClose:
-        return 'on_workbook_close';
+        return 'onWorkbookClose';
       case ScriptEventType.pageEnter:
-        return 'on_page_enter';
+        return 'onPageEnter';
       case ScriptEventType.pageLeave:
-        return 'on_page_leave';
+        return 'onPageLeave';
       case ScriptEventType.cellChanged:
-        return 'on_cell_changed';
+        return 'onCellChanged';
       case ScriptEventType.selectionChanged:
-        return 'on_selection_changed';
+        return 'onSelectionChanged';
       case ScriptEventType.notesChanged:
-        return 'on_notes_changed';
+        return 'onNotesChanged';
     }
   }
 
