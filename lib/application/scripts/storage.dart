@@ -23,6 +23,18 @@ class StoredScript {
   final String origin;
   final bool isMutable;
 
+  Iterable<String> get exportNames => document.exportNames;
+
+  DartScriptExport? export(String name) => document[name];
+
+  Map<String, DartScriptExport> get exports => document.exports;
+
+  Map<String, DartScriptSignature> get signatures => document.signatures;
+
+  DartScriptSignature? signatureFor(String name) => document.signatureFor(name);
+
+  Iterable<String> get signatureNames => document.signatureNames;
+
   StoredScript copyWith({
     String? source,
     ScriptDocument? document,
@@ -389,6 +401,7 @@ class ScriptStorage {
 
     DartScriptModule module;
     Map<String, DartScriptExport> exports;
+    Map<String, DartScriptSignature> signatures;
 
     try {
       module = await _engine.loadModule(
@@ -396,6 +409,7 @@ class ScriptStorage {
         source: source,
       );
       exports = Map<String, DartScriptExport>.from(module.exports);
+      signatures = Map<String, DartScriptSignature>.from(module.signatures);
     } on DartScriptCompilationException catch (error, stackTrace) {
       debugPrint(
         'Erreur lors de l\'analyse du module ${descriptor.fileName}: $error\n$stackTrace',
@@ -407,8 +421,10 @@ class ScriptStorage {
         descriptor: descriptor,
         source: source,
         exports: const <String, DartScriptExport>{},
+        signatures: const <String, DartScriptSignature>{},
       );
       exports = const <String, DartScriptExport>{};
+      signatures = const <String, DartScriptSignature>{};
     } catch (error, stackTrace) {
       debugPrint(
         'Erreur inattendue lors du chargement du module ${descriptor.fileName}: '
@@ -424,8 +440,10 @@ class ScriptStorage {
         descriptor: descriptor,
         source: source,
         exports: const <String, DartScriptExport>{},
+        signatures: const <String, DartScriptSignature>{},
       );
       exports = const <String, DartScriptExport>{};
+      signatures = const <String, DartScriptSignature>{};
     }
 
     final document = ScriptDocument(
@@ -434,6 +452,7 @@ class ScriptStorage {
       scope: descriptor.scope,
       module: module,
       exports: exports,
+      signatures: signatures,
     );
     _documentCache[cacheKey] = _CachedDocument(
       signature: signature,

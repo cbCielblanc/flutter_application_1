@@ -189,7 +189,7 @@ class ScriptRuntime {
     ScriptContext context,
   ) async {
     final callbackName = _callbackName(type);
-    final export = script.document[callbackName];
+    final export = script.export(callbackName);
     if (export == null) {
       return;
     }

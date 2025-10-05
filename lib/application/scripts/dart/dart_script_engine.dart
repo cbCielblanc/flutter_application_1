@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 import '../context.dart';
@@ -62,21 +63,36 @@ class DartScriptExport {
   }
 }
 
+class DartScriptSignature {
+  DartScriptSignature({
+    Iterable<String> hostFunctions = const <String>[],
+  }) : hostFunctions = List.unmodifiable(hostFunctions);
+
+  final List<String> hostFunctions;
+
+  bool get isEmpty => hostFunctions.isEmpty;
+}
+
 /// Container for the compiled representation of a script.
 class DartScriptModule {
   DartScriptModule({
     required this.descriptor,
     required this.source,
     required Map<String, DartScriptExport> exports,
-  }) : exports = Map.unmodifiable(exports);
+    required Map<String, DartScriptSignature> signatures,
+  })  : exports = Map.unmodifiable(exports),
+        signatures = Map.unmodifiable(signatures);
 
   final ScriptDescriptor descriptor;
   final String source;
   final Map<String, DartScriptExport> exports;
+  final Map<String, DartScriptSignature> signatures;
 
   Iterable<String> get exportNames => exports.keys;
 
   DartScriptExport? operator [](String name) => exports[name];
+
+  DartScriptSignature? signatureFor(String name) => signatures[name];
 }
 
 /// Thrown when a script cannot be parsed or validated.
@@ -121,13 +137,18 @@ class DartScriptEngine {
     }
 
     final exports = <String, DartScriptExport>{};
+    final signatures = <String, DartScriptSignature>{};
     definition.forEach((name, value) {
       if (value == null) {
         return;
       }
+      final actions = _normaliseActions(value);
       exports[name] = DartScriptExport(
         name: name,
-        callback: _compileCallback(name, value),
+        callback: _callbackForActions(actions),
+      );
+      signatures[name] = DartScriptSignature(
+        hostFunctions: _collectHostFunctions(actions),
       );
     });
 
@@ -135,14 +156,11 @@ class DartScriptEngine {
       descriptor: descriptor,
       source: source,
       exports: exports,
+      signatures: signatures,
     );
   }
 
-  DartScriptCallback _compileCallback(
-    String name,
-    Object? definition,
-  ) {
-    final actions = _normaliseActions(definition);
+  DartScriptCallback _callbackForActions(List<Object?> actions) {
     return (ScriptContext context) async {
       for (final action in actions) {
         await _executeAction(context, action);
@@ -158,6 +176,42 @@ class DartScriptEngine {
       return List<Object?>.from(definition);
     }
     return <Object?>[definition];
+  }
+
+  List<String> _collectHostFunctions(List<Object?> actions) {
+    final functions = LinkedHashSet<String>();
+
+    void visit(Object? action) {
+      if (action == null) {
+        return;
+      }
+      if (action is List) {
+        for (final step in action) {
+          visit(step);
+        }
+        return;
+      }
+      if (action is String) {
+        if (action.isNotEmpty) {
+          functions.add(action);
+        }
+        return;
+      }
+      if (action is Map) {
+        final map = Map<Object?, Object?>.from(action);
+        final rawName = map['call'] ?? map['function'];
+        if (rawName is String && rawName.isNotEmpty) {
+          functions.add(rawName);
+        }
+        return;
+      }
+    }
+
+    for (final action in actions) {
+      visit(action);
+    }
+
+    return List<String>.unmodifiable(functions);
   }
 
   Future<void> _executeAction(ScriptContext context, Object? action) async {

@@ -15,6 +15,7 @@ class ScriptDocument {
     required this.scope,
     required this.module,
     required this.exports,
+    required this.signatures,
   });
 
   final String id;
@@ -22,14 +23,20 @@ class ScriptDocument {
   final ScriptScope scope;
   final DartScriptModule module;
   final Map<String, DartScriptExport> exports;
+  final Map<String, DartScriptSignature> signatures;
 
   Iterable<String> get exportNames => exports.keys;
 
+  Iterable<String> get signatureNames => signatures.keys;
+
   DartScriptExport? operator [](String name) => exports[name];
+
+  DartScriptSignature? signatureFor(String name) => signatures[name];
 
   ScriptDocument copyWith({
     DartScriptModule? module,
     Map<String, DartScriptExport>? exports,
+    Map<String, DartScriptSignature>? signatures,
   }) {
     return ScriptDocument(
       id: id,
@@ -37,6 +44,7 @@ class ScriptDocument {
       scope: scope,
       module: module ?? this.module,
       exports: exports ?? this.exports,
+      signatures: signatures ?? this.signatures,
     );
   }
 }

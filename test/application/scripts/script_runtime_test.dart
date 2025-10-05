@@ -62,10 +62,15 @@ StoredScript _createStoredScript({
     for (final entry in callbacks.entries)
       entry.key: DartScriptExport(name: entry.key, callback: entry.value),
   };
+  final signatures = <String, DartScriptSignature>{
+    for (final name in callbacks.keys)
+      name: DartScriptSignature(),
+  };
   final module = DartScriptModule(
     descriptor: descriptor,
     source: '{}',
     exports: exports,
+    signatures: signatures,
   );
   final document = ScriptDocument(
     id: descriptor.key,
@@ -73,6 +78,7 @@ StoredScript _createStoredScript({
     scope: descriptor.scope,
     module: module,
     exports: exports,
+    signatures: signatures,
   );
   return StoredScript(
     descriptor: descriptor,
