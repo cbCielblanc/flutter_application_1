@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:python_ffi_dart/python_ffi_dart.dart';
 
 import 'models.dart';
+import 'python/python_runtime_config.dart';
 import 'python/python_script_engine.dart';
 
 class StoredScript {
@@ -41,9 +42,13 @@ class StoredScript {
 }
 
 class ScriptStorage {
-  ScriptStorage({AssetBundle? bundle, PythonScriptEngine? engine})
-    : _bundle = bundle ?? rootBundle,
-      _engine = engine ?? PythonScriptEngine();
+  ScriptStorage({
+    AssetBundle? bundle,
+    PythonScriptEngine? engine,
+    PythonRuntimeConfig? runtimeConfig,
+  })  : _bundle = bundle ?? rootBundle,
+        _engine =
+            engine ?? PythonScriptEngine(runtimeConfig: runtimeConfig);
 
   final AssetBundle _bundle;
   final PythonScriptEngine _engine;

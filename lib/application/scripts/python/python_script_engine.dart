@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:python_ffi_dart/python_ffi_dart.dart';
 
 import '../scope.dart';
+import 'python_runtime_config.dart';
 
 typedef PythonHostFunction = FutureOr<Object?> Function(
   List<Object?> positional, {
@@ -79,10 +80,14 @@ class PythonScriptModule {
 }
 
 class PythonScriptEngine {
-  PythonScriptEngine({PythonBindingHost? bindingHost})
-      : _bindingHost = bindingHost ?? PythonBindingHost();
+  PythonScriptEngine({
+    PythonBindingHost? bindingHost,
+    PythonRuntimeConfig? runtimeConfig,
+  })  : _bindingHost = bindingHost ?? PythonBindingHost(),
+        _runtimeConfig = runtimeConfig ?? PythonRuntimeConfig.fromEnvironment();
 
   final PythonBindingHost _bindingHost;
+  final PythonRuntimeConfig _runtimeConfig;
 
   Directory? _moduleCacheDirectory;
   bool _initialized = false;
@@ -97,9 +102,29 @@ class PythonScriptEngine {
       return;
     }
     try {
+      String? effectiveLibPath = libPath;
+      if (Platform.isWindows) {
+        final configuredPath =
+            effectiveLibPath ?? await _runtimeConfig.resolveWindowsDllPath();
+        if (configuredPath == null || configuredPath.isEmpty) {
+          throw StateError(
+            'A Python runtime DLL is required on Windows. Provide a path via '
+            'the libPath parameter, a python_runtime.json configuration file, '
+            'or the PYTHON_FFI_WINDOWS_DLL environment variable.',
+          );
+        }
+        final dllFile = File(configuredPath);
+        if (!await dllFile.exists()) {
+          throw FileSystemException(
+            'Python runtime DLL not found at the configured path.',
+            configuredPath,
+          );
+        }
+        effectiveLibPath = dllFile.path;
+      }
       await PythonFfiDart.instance.initialize(
         pythonModules: bundledPythonModules,
-        libPath: libPath,
+        libPath: effectiveLibPath,
         verboseLogging: verboseLogging,
       );
       await _installBindingHost();
