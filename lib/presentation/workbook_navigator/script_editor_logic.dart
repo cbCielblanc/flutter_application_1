@@ -340,7 +340,8 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         tab.controller.text = stored?.source ?? '';
         _suppressScriptEditorChanges = false;
         tab.isDirty = false;
-        tab.isMutable = stored?.isMutable ?? supportsFileSystem;
+        final canEdit = supportsFileSystem || (stored?.isMutable ?? false);
+        tab.isMutable = canEdit;
         if (stored == null) {
           tab.status = supportsFileSystem
               ? 'Script OptimaScript introuvable pour ${tab.descriptor.fileName}.'
