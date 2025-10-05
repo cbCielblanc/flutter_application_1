@@ -31,9 +31,11 @@ class _FakeAssetBundle extends CachingAssetBundle {
   }
 
   @override
-  Future<ByteBuffer> loadBuffer(String key, {bool cache = true}) async {
-    final data = await load(key, cache: cache);
-    return data.buffer;
+  Future<ImmutableBuffer> loadBuffer(String key) async {
+    final data = await load(key);
+    return ImmutableBuffer.fromUint8List(
+      data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+    );
   }
 
   @override
