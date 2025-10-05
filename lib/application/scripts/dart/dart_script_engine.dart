@@ -1,6 +1,8 @@
 import 'dart:async';
-import 'dart:collection';
-import 'dart:convert';
+import 'package:dart_eval/dart_eval.dart';
+import 'package:dart_eval/dart_eval_bridge.dart';
+import 'package:dart_eval/stdlib/core.dart';
+import 'package:dart_eval/src/eval/compiler/errors.dart';
 
 import '../context.dart';
 import '../descriptor.dart';
@@ -64,13 +66,11 @@ class DartScriptExport {
 }
 
 class DartScriptSignature {
-  DartScriptSignature({
-    Iterable<String> hostFunctions = const <String>[],
-  }) : hostFunctions = List.unmodifiable(hostFunctions);
+  const DartScriptSignature({
+    this.isAsync = false,
+  });
 
-  final List<String> hostFunctions;
-
-  bool get isEmpty => hostFunctions.isEmpty;
+  final bool isAsync;
 }
 
 /// Container for the compiled representation of a script.
@@ -78,13 +78,18 @@ class DartScriptModule {
   DartScriptModule({
     required this.descriptor,
     required this.source,
+    required this.libraryUri,
+    required Runtime? runtime,
     required Map<String, DartScriptExport> exports,
     required Map<String, DartScriptSignature> signatures,
-  })  : exports = Map.unmodifiable(exports),
+  })  : runtime = runtime,
+        exports = Map.unmodifiable(exports),
         signatures = Map.unmodifiable(signatures);
 
   final ScriptDescriptor descriptor;
   final String source;
+  final String libraryUri;
+  final Runtime? runtime;
   final Map<String, DartScriptExport> exports;
   final Map<String, DartScriptSignature> signatures;
 
@@ -127,164 +132,305 @@ class DartScriptEngine {
     required ScriptDescriptor descriptor,
     required String source,
   }) async {
-    Map<String, Object?> definition;
+    final libraryUri = _libraryUri(descriptor);
+    final compiler = Compiler();
+    final plugin = _OptimaScriptPlugin(_bindingHost);
+    compiler.addPlugin(plugin);
+    compiler.entrypoints.add(libraryUri);
+    compiler.addSource(const DartSource(_apiLibraryUri, _apiStub));
+
+    Program program;
     try {
-      final decoded = source.trim().isEmpty ? <String, Object?>{} : jsonDecode(source);
-      if (decoded is! Map<String, Object?>) {
-        throw const FormatException('Une racine de type objet est requise.');
-      }
-      definition = Map<String, Object?>.from(decoded);
-    } on FormatException catch (error) {
+      program = compiler.compile({
+        _packageName: <String, String>{
+          descriptor.fileName: source,
+        },
+      });
+    } on CompileError catch (error) {
       throw DartScriptCompilationException(
-        'Script ${descriptor.fileName} invalide: ${error.message}',
+        'Erreur de compilation pour ${descriptor.fileName}: ${error.message}',
         cause: error,
       );
     } catch (error) {
       throw DartScriptCompilationException(
-        'Script ${descriptor.fileName} invalide: $error',
+        'Erreur inattendue lors de la compilation de ${descriptor.fileName}: $error',
         cause: error,
       );
     }
 
+    final runtime = Runtime.ofProgram(program);
+    runtime.addPlugin(plugin);
+    runtime.addTypeAutowrapper(
+      (value) => value is ScriptContext
+          ? $ScriptContext.wrap(value, _bindingHost)
+          : null,
+    );
+
     final exports = <String, DartScriptExport>{};
     final signatures = <String, DartScriptSignature>{};
-    definition.forEach((name, value) {
-      if (value == null) {
-        return;
+    final libraryIndex = program.bridgeLibraryMappings[libraryUri];
+    final topLevel =
+        libraryIndex == null ? null : program.topLevelDeclarations[libraryIndex];
+    final available = topLevel?.keys.toSet() ?? <String>{};
+
+    for (final callback in _supportedCallbacks) {
+      if (!available.contains(callback)) {
+        continue;
       }
-      final actions = _normaliseActions(value);
-      exports[name] = DartScriptExport(
-        name: name,
-        callback: _callbackForActions(actions),
+      exports[callback] = DartScriptExport(
+        name: callback,
+        callback: _createCallback(runtime, libraryUri, callback),
       );
-      signatures[name] = DartScriptSignature(
-        hostFunctions: _collectHostFunctions(actions),
-      );
-    });
+      signatures[callback] = const DartScriptSignature(isAsync: true);
+    }
 
     return DartScriptModule(
       descriptor: descriptor,
       source: source,
+      libraryUri: libraryUri,
+      runtime: runtime,
       exports: exports,
       signatures: signatures,
     );
   }
 
-  DartScriptCallback _callbackForActions(List<Object?> actions) {
+  DartScriptCallback _createCallback(Runtime runtime, String libraryUri, String name) {
     return (ScriptContext context) async {
-      for (final action in actions) {
-        await _executeAction(context, action);
+      final result = runtime.executeLib(
+        libraryUri,
+        name,
+        <Object?>[$ScriptContext.wrap(context, _bindingHost)],
+      );
+      if (result is $Future) {
+        await result.$value;
+      } else if (result is Future) {
+        await result;
+      } else if (result is $Value) {
+        final reified = result.$reified;
+        if (reified is Future) {
+          await reified;
+        }
       }
     };
   }
 
-  List<Object?> _normaliseActions(Object? definition) {
-    if (definition == null) {
-      return const <Object?>[];
-    }
-    if (definition is List) {
-      return List<Object?>.from(definition);
-    }
-    return <Object?>[definition];
+  String _libraryUri(ScriptDescriptor descriptor) {
+    return 'package:$_packageName/${descriptor.fileName}';
+  }
+}
+
+const _packageName = 'optimascript';
+const _apiLibraryUri = 'package:$_packageName/api.dart';
+const _supportedCallbacks = <String>{
+  'onWorkbookOpen',
+  'onWorkbookClose',
+  'onPageEnter',
+  'onPageLeave',
+  'onCellChanged',
+  'onSelectionChanged',
+  'onNotesChanged',
+  'onInvoke',
+};
+
+const _apiStub = r'''
+library optimascript.api;
+
+import 'dart:async';
+
+abstract class ScriptContext {
+  FutureOr<void> logMessage(String message);
+  FutureOr<void> callHost(
+    String name, {
+    List<Object?> positional = const <Object?>[],
+    Map<String, Object?>? named,
+  });
+}
+''';
+
+class _OptimaScriptPlugin implements EvalPlugin {
+  _OptimaScriptPlugin(this._bindingHost);
+
+  final DartBindingHost _bindingHost;
+
+  @override
+  String get identifier => 'optimascript';
+
+  @override
+  void configureForCompile(BridgeDeclarationRegistry registry) {
+    registry.defineBridgeClass($ScriptContext.$declaration);
   }
 
-  List<String> _collectHostFunctions(List<Object?> actions) {
-    final functions = LinkedHashSet<String>();
-
-    void visit(Object? action) {
-      if (action == null) {
-        return;
-      }
-      if (action is List) {
-        for (final step in action) {
-          visit(step);
-        }
-        return;
-      }
-      if (action is String) {
-        if (action.isNotEmpty) {
-          functions.add(action);
-        }
-        return;
-      }
-      if (action is Map) {
-        final map = Map<Object?, Object?>.from(action);
-        final rawName = map['call'] ?? map['function'];
-        if (rawName is String && rawName.isNotEmpty) {
-          functions.add(rawName);
-        }
-        return;
-      }
-    }
-
-    for (final action in actions) {
-      visit(action);
-    }
-
-    return List<String>.unmodifiable(functions);
-  }
-
-  Future<void> _executeAction(ScriptContext context, Object? action) async {
-    if (action == null) {
-      return;
-    }
-    if (action is List) {
-      for (final step in action) {
-        await _executeAction(context, step);
-      }
-      return;
-    }
-    if (action is String) {
-      await _invokeHost(action, context, const <Object?>[], null);
-      return;
-    }
-    if (action is Map) {
-      final map = Map<Object?, Object?>.from(action);
-      final rawName = map['call'] ?? map['function'];
-      if (rawName is! String || rawName.isEmpty) {
-        throw DartScriptCompilationException(
-          'Action invalide: aucune fonction hôte définie.',
-        );
-      }
-      final args = map['args'];
-      final positional = args is List
-          ? List<Object?>.from(args)
-          : const <Object?>[];
-      final named = map['named'];
-      Map<String, Object?>? namedArgs;
-      if (named is Map) {
-        namedArgs = <String, Object?>{};
-        named.forEach((key, value) {
-          if (key == null) {
-            return;
-          }
-          namedArgs![key.toString()] = value;
-        });
-      }
-      await _invokeHost(rawName, context, positional, namedArgs);
-      if (map.containsKey('then')) {
-        await _executeAction(context, map['then']);
-      }
-      return;
-    }
-
-    throw DartScriptCompilationException(
-      'Action ${action.runtimeType} non prise en charge dans ${context.descriptor.key}.',
+  @override
+  void configureForRuntime(Runtime runtime) {
+    runtime.addTypeAutowrapper(
+      (value) => value is ScriptContext
+          ? $ScriptContext.wrap(value, _bindingHost)
+          : null,
     );
   }
+}
 
-  Future<void> _invokeHost(
-    String name,
-    ScriptContext context,
-    List<Object?> positional,
-    Map<String, Object?>? named,
-  ) async {
-    final function = _bindingHost.resolve(name);
-    if (function == null) {
-      throw DartScriptCompilationException(
-        'Fonction hôte inconnue: $name',
-      );
+class $ScriptContext
+    with $Bridge<ScriptContext>
+    implements ScriptContext, $Instance {
+  $ScriptContext.wrap(this.$value, this._bindingHost)
+      : _superclass = $Object($value);
+
+  static final $type = BridgeTypeSpec(_apiLibraryUri, 'ScriptContext').ref;
+
+  static final $declaration = BridgeClassDef(
+    BridgeClassType($type, isAbstract: true),
+    constructors: const {},
+    methods: {
+      'logMessage': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.future),
+          ),
+          params: const [
+            BridgeParameter(
+              'message',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.string),
+              ),
+              false,
+            ),
+          ],
+          namedParams: const [],
+        ),
+      ),
+      'callHost': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.future),
+          ),
+          params: const [
+            BridgeParameter(
+              'name',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.string),
+              ),
+              false,
+            ),
+          ],
+          namedParams: const [
+            BridgeParameter(
+              'positional',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.list),
+                nullable: false,
+              ),
+              true,
+            ),
+            BridgeParameter(
+              'named',
+              BridgeTypeAnnotation(
+                BridgeTypeRef(CoreTypes.map),
+                nullable: true,
+              ),
+              true,
+            ),
+          ],
+        ),
+      ),
+    },
+    wrap: true,
+  );
+
+  @override
+  final ScriptContext $value;
+
+  final DartBindingHost _bindingHost;
+  final $Instance _superclass;
+
+  @override
+  ScriptContext get $reified => $value;
+
+  @override
+  int $getRuntimeType(Runtime runtime) => runtime.lookupType($type.spec!);
+
+  @override
+  $Value? $getProperty(Runtime runtime, String identifier) {
+    switch (identifier) {
+      case 'logMessage':
+        return _logMessage;
+      case 'callHost':
+        return _callHost;
+      default:
+        return _superclass.$getProperty(runtime, identifier);
     }
-    await function(context, positional, named: named);
+  }
+
+  @override
+  void $setProperty(Runtime runtime, String identifier, $Value value) {
+    _superclass.$setProperty(runtime, identifier, value);
+  }
+
+  static const $Function _logMessage = $Function(_invokeLogMessage);
+
+  static $Value? _invokeLogMessage(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $ScriptContext;
+    final raw = args.isEmpty ? null : args[0]?.$reified;
+    final message = raw is String ? raw : raw?.toString() ?? '';
+    final future = Future.sync(() => instance.$value.logMessage(message));
+    return $Future.wrap(future.then((value) => value));
+  }
+
+  static const $Function _callHost = $Function(_invokeCallHost);
+
+  static $Value? _invokeCallHost(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $ScriptContext;
+    final nameRaw = args.isEmpty ? null : args[0]?.$reified;
+    if (nameRaw is! String || nameRaw.isEmpty) {
+      throw ArgumentError('callHost requiert un nom de fonction.');
+    }
+    final positional =
+        args.length > 1 ? _reifyList(args[1]?.$reified) : <Object?>[];
+    final named = args.length > 2 ? _reifyMap(args[2]?.$reified) : null;
+
+    final function = instance._bindingHost.resolve(nameRaw);
+    if (function == null) {
+      throw StateError('Fonction hôte inconnue: $nameRaw');
+    }
+
+    final future = Future.sync(
+      () => function(instance.$value, positional, named: named),
+    );
+    return $Future.wrap(future.then((value) => value));
+  }
+
+  static List<Object?> _reifyList(Object? value) {
+    if (value is List) {
+      return value
+          .map((element) => element is $Value ? element.$reified : element)
+          .toList(growable: false);
+    }
+    return const <Object?>[];
+  }
+
+  static Map<String, Object?>? _reifyMap(Object? value) {
+    if (value is Map) {
+      final result = <String, Object?>{};
+      value.forEach((key, val) {
+        if (key == null) {
+          return;
+        }
+        final castKey = key is $Value ? key.$reified : key;
+        if (castKey == null) {
+          return;
+        }
+        result[castKey.toString()] = val is $Value ? val.$reified : val;
+      });
+      return result;
+    }
+    return null;
   }
 }
