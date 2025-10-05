@@ -163,7 +163,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         _currentScriptDescriptor = null;
         _scriptEditorMutable = false;
         _scriptEditorStatus =
-            'Selectionnez un script a charger pour commencer.';
+            'Sélectionnez un script OptimaScript à charger pour commencer.';
         _activeScriptNodeId = null;
       });
       return;
@@ -304,7 +304,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         stored = await storage.saveScript(tab.descriptor, template);
         createdFromTemplate = true;
         debugPrint(
-          'Script Dart manquant pour ${tab.descriptor.fileName}. Modèle sauvegardé dans ${stored.origin}.',
+          'Script OptimaScript manquant pour ${tab.descriptor.fileName}. Modèle sauvegardé dans ${stored.origin}.',
         );
         await _refreshScriptLibrary(silent: true);
       }
@@ -320,16 +320,16 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         tab.isMutable = stored?.isMutable ?? false;
         if (stored == null) {
           tab.status = storage.supportsFileSystem
-              ? 'Script Dart introuvable pour ${tab.descriptor.fileName}.'
+              ? 'Script OptimaScript introuvable pour ${tab.descriptor.fileName}.'
               :
-                  'Script Dart introuvable et édition indisponible sur cette plateforme (lecture seule).';
+                  'Script OptimaScript introuvable et édition indisponible sur cette plateforme (lecture seule).';
         } else if (!tab.isMutable) {
           tab.status =
-              'Script Dart chargé depuis ${stored.origin}. Edition indisponible sur cette plateforme (lecture seule).';
+              'Script OptimaScript chargé depuis ${stored.origin}. Édition indisponible sur cette plateforme (lecture seule).';
         } else {
           tab.status = createdFromTemplate
-              ? 'Script Dart absent. Modèle par défaut créé et sauvegardé (${stored.origin}).'
-              : 'Script Dart chargé depuis ${stored.origin}.';
+              ? 'Script OptimaScript absent. Modèle par défaut créé et sauvegardé (${stored.origin}).'
+              : 'Script OptimaScript chargé depuis ${stored.origin}.';
         }
         if (identical(tab, _activeScriptTab)) {
           _scriptEditorMutable = tab.isMutable;
@@ -341,7 +341,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         return;
       }
       setState(() {
-        final message = 'Erreur lors du chargement du script Dart: $error';
+        final message = 'Erreur lors du chargement du script OptimaScript: $error';
         tab.status = message;
         if (identical(tab, _activeScriptTab)) {
           _scriptEditorStatus = message;
@@ -398,7 +398,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         _currentScriptDescriptor = null;
         _scriptEditorMutable = false;
         _scriptEditorStatus =
-            'Selectionnez un script a charger pour commencer.';
+            'Sélectionnez un script OptimaScript à charger pour commencer.';
         _activeScriptNodeId = null;
       });
       return;
@@ -477,9 +477,9 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         return;
       }
       setState(() {
-        _scriptEditorStatus = validationSkipped
-            ? 'Compilation indisponible. Enregistrement du script...'
-            : 'Enregistrement du script Dart...';
+          _scriptEditorStatus = validationSkipped
+              ? 'Compilation indisponible. Enregistrement du script...'
+              : 'Enregistrement du script OptimaScript...';
         activeTab.status = _scriptEditorStatus;
       });
 
@@ -500,7 +500,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
           activeTab.rawSharedKey = _sharedScriptKeyController.text;
         }
         _currentScriptDescriptor = stored.descriptor;
-        _scriptEditorStatus = 'Script Dart enregistré dans ${stored.origin}.';
+        _scriptEditorStatus = 'Script OptimaScript enregistré dans ${stored.origin}.';
         activeTab.status = _scriptEditorStatus;
       });
     } catch (error) {
@@ -508,8 +508,8 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         return;
       }
       setState(() {
-        final message =
-            "Erreur lors de l'enregistrement du script Dart: $error";
+          final message =
+              "Erreur lors de l'enregistrement du script OptimaScript: $error";
         _scriptEditorStatus = message;
         activeTab.status = message;
       });
@@ -577,7 +577,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         _scriptEditorLoading = false;
         _scriptEditorMutable = false;
         _scriptEditorStatus =
-            'Selectionnez un script a charger pour commencer.';
+            'Sélectionnez un script OptimaScript à charger pour commencer.';
       });
       return;
     }
@@ -599,32 +599,76 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         return '''
 import 'package:optimascript/api.dart';
 
-Future<void> onWorkbookOpen(ScriptContext ctx) async {
-  await ctx.logMessage('Classeur chargé.');
+Future<void> onWorkbookOpen(ScriptContext context) async {
+  final workbook = context.api.workbook;
+  final activeSheet = workbook.activeSheet ??
+      (workbook.sheetCount > 0 ? workbook.sheetAt(0) : null);
+  if (activeSheet != null) {
+    activeSheet.activate();
+    final cell = activeSheet.cellByLabel('A1');
+    final value = cell?.text ?? '';
+    final message =
+        'Feuille ' + activeSheet.name + ' activée (A1 = ' + value + ').';
+    await context.callHost(
+      'log',
+      positional: <Object?>[message],
+    );
+  } else {
+    await context.callHost(
+      'log',
+      positional: <Object?>['Aucune feuille active à préparer.'],
+    );
+  }
 }
 
-Future<void> onWorkbookClose(ScriptContext ctx) async {
-  await ctx.logMessage('Classeur fermé.');
+Future<void> onWorkbookClose(ScriptContext context) async {
+  await context.callHost(
+    'log',
+    positional: <Object?>['Classeur fermé via OptimaScript Dart.'],
+  );
 }
 ''';
       case ScriptScope.page:
         return '''
 import 'package:optimascript/api.dart';
 
-Future<void> onPageEnter(ScriptContext ctx) async {
-  await ctx.logMessage('Entrée sur la page ${descriptor.key}.');
+Future<void> onPageEnter(ScriptContext context) async {
+  final sheet = context.api.workbook.activeSheet;
+  final cell = sheet?.cellByLabel('A1');
+  final pageKey = context.descriptor.key;
+  cell?.setValue('Bienvenue sur la page ' + pageKey + '.');
+  await context.callHost(
+    'log',
+    positional: <Object?>[
+      'Page ' + pageKey + ' initialisée via OptimaScript Dart.',
+    ],
+  );
 }
 
-Future<void> onPageLeave(ScriptContext ctx) async {
-  await ctx.logMessage('Sortie de la page ${descriptor.key}.');
+Future<void> onPageLeave(ScriptContext context) async {
+  final pageKey = context.descriptor.key;
+  await context.callHost(
+    'log',
+    positional: <Object?>[
+      'Page ' + pageKey + ' quittée via OptimaScript Dart.',
+    ],
+  );
 }
 ''';
       case ScriptScope.shared:
         return '''
 import 'package:optimascript/api.dart';
 
-Future<void> onInvoke(ScriptContext ctx) async {
-  await ctx.logMessage('Utilitaire exécuté.');
+Future<void> onInvoke(ScriptContext context) async {
+  final workbook = context.api.workbook;
+  final sheet = workbook.activeSheet;
+  final cell = sheet?.cellByLabel('B2');
+  final value = cell?.text ?? '';
+  final message = 'Utilitaire partagé exécuté (B2 = ' + value + ').';
+  await context.callHost(
+    'log',
+    positional: <Object?>[message],
+  );
 }
 ''';
     }
@@ -650,14 +694,14 @@ Future<void> onInvoke(ScriptContext ctx) async {
       final template = _defaultScriptTemplate(descriptor);
       final stored = await _runtime.storage.saveScript(descriptor, template);
       createdPages.add(page.name);
-      debugPrint(
-        'Script Dart automatiquement créé pour la page "${page.name}" (${stored.origin}).',
-      );
+        debugPrint(
+          'Script OptimaScript automatiquement créé pour la page "${page.name}" (${stored.origin}).',
+        );
     }
     if (createdPages.isNotEmpty && mounted) {
       setState(() {
         final notice =
-            'Scripts Dart créés automatiquement pour: ${createdPages.join(', ')}.';
+            'Scripts OptimaScript créés automatiquement pour: ${createdPages.join(', ')}.';
         _scriptEditorStatus =
             _scriptEditorStatus == null ? notice : '${_scriptEditorStatus!}\n$notice';
       });
