@@ -58,6 +58,7 @@ class ScriptStorage {
   final Map<String, _CachedDocument> _documentCache = <String, _CachedDocument>{};
   final Set<String> _legacyAssetScripts = <String>{};
   final Set<String> _legacyFileScripts = <String>{};
+  bool _engineInitialised = false;
 
   List<String> get migrationWarnings {
     final warnings = <String>[];
@@ -83,6 +84,28 @@ class ScriptStorage {
   bool get supportsFileSystem => _supportsFileSystem;
 
   bool get isReadOnly => !_supportsFileSystem;
+
+  Future<void> initialize({bool precompileAssets = false}) async {
+    if (_engineInitialised) {
+      return;
+    }
+    final assetScripts = await _listAssetScripts();
+    if (precompileAssets && assetScripts.isNotEmpty) {
+      for (final asset in assetScripts) {
+        final descriptor = _descriptorFromAsset(asset);
+        if (descriptor == null) {
+          continue;
+        }
+        try {
+          final source = await _bundle.loadString(asset);
+          await _loadDocument(descriptor: descriptor, source: source);
+        } on FlutterError {
+          continue;
+        }
+      }
+    }
+    _engineInitialised = true;
+  }
 
   Future<Directory?> _ensureWriteDirectory() async {
     if (!_supportsFileSystem) {
