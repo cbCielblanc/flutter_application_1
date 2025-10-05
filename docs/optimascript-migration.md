@@ -33,9 +33,28 @@ sur le moteur de commandes existant.
 | `workbook.sheetByName(name)` / `sheetAt(index)` | Résolution explicite d'une feuille. |
 | `workbook.activateSheetByName(name)` | Active une feuille et déclenche la navigation. |
 | `sheet.cellAt(row, column)` / `cellByLabel('A1')` | Accès typé aux cellules. |
+| `sheet.range('A1:C5')` | Retourne un `RangeApi` chaînable pour lire/écrire une plage rectangulaire. |
+| `sheet.row(index)` / `sheet.column(index)` | Wrappers dédiés pour manipuler rapidement une ligne ou une colonne. |
 | `cell.setValue(value)` / `cell.clear()` | Écritures atomiques sur les cellules. |
 | `sheet.insertRow([index])` / `sheet.insertColumn([index])` | Insertion structurée dans la grille. |
 | `sheet.clear()` | Réinitialise l'ensemble d'une feuille. |
+
+### `RangeApi`, `RowApi`, `ColumnApi` et `ChartApi`
+
+Les nouvelles primitives exposent une ergonomie proche de celle d'Excel/Google Sheets :
+
+* `RangeApi` permet de récupérer les valeurs via `range.values`, d'appliquer des blocs avec
+  `range.setValues([...])`, de réaliser un remplissage automatique (`fillDown`/`fillRight`),
+  de trier (`sortByColumn`), de normaliser les nombres (`formatAsNumber`) ou encore de
+  nettoyer les textes (`autoFit`). Chaque méthode retourne la même instance pour favoriser
+  les chaînages (`range.setValues(...).formatAsNumber(2).autoFit()`).
+* `RowApi` et `ColumnApi` simplifient les écritures unitaires (`setValues`), le
+  formatage numérique et le remplissage horizontal/vertical.
+* `ChartApi` encapsule la plage source d'un graphique fictif. Il est possible de consulter
+  les métadonnées via `chart.describe()` ou de mettre à jour la plage avec `chart.updateRange(...)`.
+
+Toutes ces opérations s'appuient sur le moteur de commandes existant, garantissant un
+historique cohérent et la synchronisation avec l'interface utilisateur.
 
 ### Nouveaux événements VBA pris en charge
 

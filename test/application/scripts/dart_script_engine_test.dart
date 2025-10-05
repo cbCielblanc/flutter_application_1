@@ -144,15 +144,25 @@ Future<void> onWorkbookOpen(ScriptContext context) async {
   final workbook = context.api.workbook;
   final second = workbook.sheetByName('Feuille 2');
   if (second != null) {
-    final cell = second.cellAt(0, 0);
-    if (cell.isEmpty) {
-      cell.setValue(42);
-    }
-    second.insertColumn();
+    second.range('A1:B1')?.setValues(const [
+      <Object?>['Nom', 'Actif'],
+    ]);
+    second.range('A2:A3')?.setValues(const [
+      <Object?>['Alice'],
+      <Object?>['Bob'],
+    ]);
+    second
+        .column(1)
+        ?.setValues(const <Object?>['Actif', '  Oui  ', 'Non '])
+        .autoFit();
+    second.range('C2:C3')?.setValues(const [
+      <Object?>['4.25'],
+      <Object?>[5.75],
+    ]).formatAsNumber(1);
   }
   if (workbook.activateSheetAt(1)) {
     final active = workbook.activeSheet;
-    active?.cellAt(0, 1).setValue(true);
+    active?.range('C2:C2')?.setValue(true);
   }
 }
 ''';
@@ -168,8 +178,22 @@ Future<void> onWorkbookOpen(ScriptContext context) async {
 
       final workbook = Workbook(
         pages: [
-          Sheet.fromRows(name: 'Feuille 1', rows: const [<Object?>[null]]),
-          Sheet.fromRows(name: 'Feuille 2', rows: const [<Object?>[null]]),
+          Sheet.fromRows(
+            name: 'Feuille 1',
+            rows: const [
+              <Object?>[null, null, null],
+              <Object?>[null, null, null],
+              <Object?>[null, null, null],
+            ],
+          ),
+          Sheet.fromRows(
+            name: 'Feuille 2',
+            rows: const [
+              <Object?>[null, null, null],
+              <Object?>[null, null, null],
+              <Object?>[null, null, null],
+            ],
+          ),
         ],
       );
       final manager = WorkbookCommandManager(initialWorkbook: workbook);
@@ -184,10 +208,14 @@ Future<void> onWorkbookOpen(ScriptContext context) async {
       await export!.call(context);
 
       final secondSheet = manager.workbook.sheets[1];
-      expect(secondSheet.rows.first.first.value, equals(42));
-      expect(secondSheet.columnCount, equals(2));
+      expect(secondSheet.rows[0][0].value, equals('Nom'));
+      expect(secondSheet.rows[0][1].value, equals('Actif'));
+      expect(secondSheet.rows[1][0].value, equals('Alice'));
+      expect(secondSheet.rows[1][1].value, equals('Oui'));
+      expect(secondSheet.rows[2][1].value, equals('Non'));
+      expect(secondSheet.rows[1][2].value, isTrue);
+      expect(secondSheet.rows[2][2].value, equals(5.8));
       expect(manager.activeSheetIndex, equals(1));
-      expect(secondSheet.rows.first[1].value, isTrue);
     });
   });
 }
