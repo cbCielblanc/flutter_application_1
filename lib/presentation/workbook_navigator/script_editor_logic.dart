@@ -247,7 +247,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
     }
 
     final controller = CodeController(
-      language: python,
+      language: scriptLanguage,
       params: const EditorParams(tabSpaces: 4),
     );
     final tab = ScriptEditorTab(
@@ -434,17 +434,6 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
           descriptor: descriptor,
           source: source,
         );
-      } on PythonFfiException catch (error) {
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          final message =
-              'Erreur Python lors de la validation: $error';
-          _scriptEditorStatus = message;
-          activeTab.status = message;
-        });
-        return;
       } on ScriptValidationException catch (error) {
         if (!mounted) {
           return;
@@ -595,82 +584,29 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
   String _defaultScriptTemplate(ScriptDescriptor descriptor) {
     switch (descriptor.scope) {
       case ScriptScope.global:
-        return '''"""Module global Optima."""
-
-def on_workbook_open(ctx):
-    """Déclenché lors de l'ouverture du classeur."""
-    workbook = ctx.get("workbook", {})
-    page_count = workbook.get("pageCount", 0)
-    print(f"[OptimaScript] Classeur chargé ({page_count} page(s)).")
-
-def on_workbook_close(ctx):
-    """Déclenché lors de la fermeture du classeur."""
-    pass
-
-def on_page_enter(ctx):
-    """Déclenché lorsqu'une page devient active."""
-    page = ctx.get("page", {})
-    print(f"[OptimaScript] Page active: {page.get('name')}")
-
-def on_page_leave(ctx):
-    """Déclenché lorsqu'une page perd le focus."""
-    pass
-
-def on_cell_changed(ctx):
-    """Réagit à la modification d'une cellule."""
-    cell = ctx.get("cell", {})
-    change = ctx.get("change", {})
-    print(f"[OptimaScript] {cell.get('label')} -> {change.get('newRaw')!r}")
-
-def on_selection_changed(ctx):
-    """Réagit à la modification de la sélection."""
-    selection = ctx.get("selection", {})
-    print(f"[OptimaScript] Sélection: {selection.get('current')}")
-
-def on_notes_changed(ctx):
-    """Réagit à la modification du contenu des notes."""
-    notes = ctx.get("notes", {})
-    print(f"[OptimaScript] Notes mises à jour: {len(notes.get('content') or '')} caractère(s).")
-
+        return '''
+{
+  "onWorkbookOpen": [
+    {"call": "log", "args": ["Classeur chargé."]}
+  ],
+  "onWorkbookClose": [
+    {"call": "log", "args": ["Classeur fermé."]}
+  ]
+}
 ''';
       case ScriptScope.page:
-        return '''"""Module spécifique à une page."""
-
-def on_page_enter(ctx):
-    """Personnalise l'entrée sur la page."""
-    page = ctx.get("page", {})
-    print(f"[OptimaScript] Bienvenue sur {page.get('name')}")
-
-def on_page_leave(ctx):
-    """Nettoie lorsque la page perd le focus."""
-    pass
-
-def on_cell_changed(ctx):
-    """Réagit à la modification d'une cellule."""
-    cell = ctx.get("cell", {})
-    change = ctx.get("change", {})
-    print(f"[OptimaScript] {cell.get('label')} -> {change.get('newRaw')!r}")
-
-def on_selection_changed(ctx):
-    """Réagit à la modification de la sélection."""
-    selection = ctx.get("selection", {})
-    print(f"[OptimaScript] Sélection: {selection.get('current')}")
-
-def on_notes_changed(ctx):
-    """Réagit à la modification du contenu des notes."""
-    notes = ctx.get("notes", {})
-    print(f"[OptimaScript] Notes mises à jour: {len(notes.get('content') or '')} caractère(s).")
-
+        return '''
+{
+  "onPageEnter": [
+    {"call": "log", "args": ["Entrée sur la page ${descriptor.key}."]}
+  ],
+  "onPageLeave": [
+    {"call": "log", "args": ["Sortie de la page ${descriptor.key}."]}
+  ]
+}
 ''';
       case ScriptScope.shared:
-        return '''"""Utilitaires Python partagés."""
-
-def helper(ctx, message: str) -> None:
-    """Fonction de démonstration accessible depuis d'autres modules."""
-    page = ctx.get("page", {})
-    print(f"[OptimaScript][{page.get('name')}] {message}")
-
-''';
+        return '{\n  "onInvoke": [{"call": "log", "args": ["Utilitaire exécuté."]}]\n}\n';
     }
   }
 

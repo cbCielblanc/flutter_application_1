@@ -4,11 +4,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:python_ffi_dart/python_ffi_dart.dart';
 
+import 'dart/dart_script_engine.dart';
 import 'models.dart';
-import 'python/python_runtime_config.dart';
-import 'python/python_script_engine.dart';
 
 class StoredScript {
   StoredScript({
@@ -44,14 +42,14 @@ class StoredScript {
 class ScriptStorage {
   ScriptStorage({
     AssetBundle? bundle,
-    PythonScriptEngine? engine,
-    PythonRuntimeConfig? runtimeConfig,
+    DartScriptEngine? engine,
+    DartBindingHost? bindingHost,
   })  : _bundle = bundle ?? rootBundle,
-        _engine =
-            engine ?? PythonScriptEngine(runtimeConfig: runtimeConfig);
+        _engine = engine ??
+            DartScriptEngine(bindingHost: bindingHost ?? _defaultBindingHost());
 
   final AssetBundle _bundle;
-  final PythonScriptEngine _engine;
+  final DartScriptEngine _engine;
   final bool _supportsFileSystem = !kIsWeb;
 
   Directory? _writeDirectory;
@@ -202,7 +200,7 @@ class ScriptStorage {
         if (entity is! File) {
           continue;
         }
-        if (!entity.path.endsWith('.py')) {
+        if (!entity.path.endsWith('.json')) {
           continue;
         }
         final relative = entity.path.substring(basePath.length + 1);
@@ -265,7 +263,7 @@ class ScriptStorage {
       }
       final scripts = <String>[];
       decoded.forEach((key, value) {
-        if (key.startsWith('assets/scripts/') && key.endsWith('.py')) {
+        if (key.startsWith('assets/scripts/') && key.endsWith('.json')) {
           scripts.add(key);
         }
       });
@@ -289,10 +287,10 @@ class ScriptStorage {
     }
     final scopeSegment = segments.first;
     final fileName = segments.last;
-    if (!fileName.endsWith('.py')) {
+    if (!fileName.endsWith('.json')) {
       return null;
     }
-    final key = fileName.substring(0, fileName.length - 3);
+    final key = fileName.substring(0, fileName.length - 5);
     switch (scopeSegment) {
       case 'global':
         return ScriptDescriptor(scope: ScriptScope.global, key: key);
@@ -317,41 +315,28 @@ class ScriptStorage {
       return cached.document;
     }
 
-    PythonScriptModule module;
-    Map<String, PythonScriptExport> exports;
+    DartScriptModule module;
+    Map<String, DartScriptExport> exports;
 
     try {
       module = await _engine.loadModule(
-        id: descriptor.key,
-        scope: descriptor.scope,
+        descriptor: descriptor,
         source: source,
       );
-      exports = Map<String, PythonScriptExport>.from(module.exports);
-    } on UnsupportedError catch (error) {
-      if (strict) {
-        throw ScriptValidationException(
-          'Interpréteur Python indisponible: $error',
-          allowSave: true,
-        );
-      }
-      debugPrint('Interpreteur Python indisponible: $error');
-      module = PythonScriptModule.empty(
-        moduleName: descriptor.key,
-        scope: descriptor.scope,
-      );
-      exports = const <String, PythonScriptExport>{};
-    } on PythonFfiException catch (error, stackTrace) {
+      exports = Map<String, DartScriptExport>.from(module.exports);
+    } on DartScriptCompilationException catch (error, stackTrace) {
       debugPrint(
-        'Erreur lors de l\'import du module ${descriptor.fileName}: $error\n$stackTrace',
+        'Erreur lors de l\'analyse du module ${descriptor.fileName}: $error\n$stackTrace',
       );
       if (strict) {
-        throw error;
+        throw ScriptValidationException(error.message);
       }
-      module = PythonScriptModule.empty(
-        moduleName: descriptor.key,
-        scope: descriptor.scope,
+      module = DartScriptModule(
+        descriptor: descriptor,
+        source: source,
+        exports: const <String, DartScriptExport>{},
       );
-      exports = const <String, PythonScriptExport>{};
+      exports = const <String, DartScriptExport>{};
     } catch (error, stackTrace) {
       debugPrint(
         'Erreur inattendue lors du chargement du module ${descriptor.fileName}: '
@@ -363,11 +348,12 @@ class ScriptStorage {
           '$error',
         );
       }
-      module = PythonScriptModule.empty(
-        moduleName: descriptor.key,
-        scope: descriptor.scope,
+      module = DartScriptModule(
+        descriptor: descriptor,
+        source: source,
+        exports: const <String, DartScriptExport>{},
       );
-      exports = const <String, PythonScriptExport>{};
+      exports = const <String, DartScriptExport>{};
     }
 
     final document = ScriptDocument(
@@ -413,5 +399,17 @@ class ScriptValidationException implements Exception {
 
   @override
   String toString() => message;
+}
+
+DartBindingHost _defaultBindingHost() {
+  return DartBindingHost(
+    functions: <String, DartHostFunction>{
+      'log': (context, positional, {named}) async {
+        final message =
+            positional.isEmpty ? '' : positional.first?.toString() ?? '';
+        await context.logMessage(message);
+      },
+    },
+  );
 }
 
