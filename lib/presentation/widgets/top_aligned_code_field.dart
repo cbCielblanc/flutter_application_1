@@ -120,16 +120,18 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
       return;
     }
 
-    final str = widget.controller.text.split('\n');
+    final lines = widget.controller.text.split('\n');
+    final newLineCount = max(1, lines.length);
+    final newDigitWidth = max(1, newLineCount.toString().length);
     final buf = <String>[];
 
-    for (var k = 0; k < str.length; k++) {
-      buf.add((k + 1).toString());
+    for (var k = 0; k < lines.length; k++) {
+      buf.add((k + 1).toString().padLeft(newDigitWidth));
     }
 
     _numberController?.text = buf.join('\n');
-    _lineCount = max(1, buf.length);
-    _lineNumberDigits = max(1, _lineCount.toString().length);
+    _lineCount = newLineCount;
+    _lineNumberDigits = newDigitWidth;
 
     longestLine = '';
     for (final line in widget.controller.text.split('\n')) {
@@ -223,7 +225,7 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
             numberTextStyle,
           ) ??
           TextSpan(
-            text: ''.padLeft(_lineNumberDigits, '0'),
+            text: _lineCount.toString().padLeft(_lineNumberDigits),
             style: numberTextStyle,
           );
       final digitPainter = TextPainter(
