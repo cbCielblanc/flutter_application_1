@@ -3,10 +3,10 @@ import '../../commands/insert_column_command.dart';
 import '../../commands/insert_row_command.dart';
 import '../../commands/set_cell_value_command.dart';
 import '../../commands/workbook_command_manager.dart';
-import '../../domain/cell.dart';
-import '../../domain/sheet.dart';
-import '../../domain/workbook.dart';
-import '../../state/sheet_selection_state.dart';
+import '../../../domain/cell.dart';
+import '../../../domain/sheet.dart';
+import '../../../domain/workbook.dart';
+import '../../../state/sheet_selection_state.dart';
 
 /// Point d'accès racine vers les APIs scripts.
 class ScriptApi {
