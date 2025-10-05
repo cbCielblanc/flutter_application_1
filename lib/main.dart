@@ -47,11 +47,7 @@ class _MyAppState extends State<MyApp> {
       storage: storage,
       commandManager: _commandManager,
     );
-    unawaited(
-      _scriptRuntime.initialize().then(
-        (_) => _scriptRuntime.dispatchWorkbookOpen(),
-      ),
-    );
+    unawaited(_initialiseScripts());
   }
 
   @override
@@ -60,6 +56,11 @@ class _MyAppState extends State<MyApp> {
     unawaited(_scriptRuntime.dispatchWorkbookClose());
     _commandManager.dispose();
     super.dispose();
+  }
+
+  Future<void> _initialiseScripts() async {
+    await _scriptRuntime.initialize();
+    await _scriptRuntime.dispatchWorkbookOpen();
   }
 
   void _updateMode(AppMode mode) {
