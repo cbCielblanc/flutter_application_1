@@ -54,7 +54,31 @@ class ScriptStorage {
 
   Directory? _writeDirectory;
   List<String>? _assetScriptPaths;
+  Set<String>? _assetLegacyScriptPaths;
   final Map<String, _CachedDocument> _documentCache = <String, _CachedDocument>{};
+  final Set<String> _legacyAssetScripts = <String>{};
+  final Set<String> _legacyFileScripts = <String>{};
+
+  List<String> get migrationWarnings {
+    final warnings = <String>[];
+    if (_legacyAssetScripts.isNotEmpty) {
+      final assets = _legacyAssetScripts.toList()..sort();
+      warnings.add(
+        'Scripts Python hérités détectés dans les assets: '
+        '${assets.join(', ')}. Ces scripts ne sont plus pris en charge. '
+        'Importez-les dans l\'éditeur puis sauvegardez-les au format Dart (*.dart).',
+      );
+    }
+    if (_legacyFileScripts.isNotEmpty) {
+      final files = _legacyFileScripts.toList()..sort();
+      warnings.add(
+        'Scripts Python hérités détectés sur le disque: '
+        '${files.join(', ')}. Renommez-les avec l\'extension .dart puis '
+        'mettez-les à jour depuis l\'espace administrateur.',
+      );
+    }
+    return warnings;
+  }
 
   bool get supportsFileSystem => _supportsFileSystem;
 
@@ -177,6 +201,8 @@ class ScriptStorage {
   }
 
   Future<List<StoredScript>> loadAll({ScriptScope? scope}) async {
+    _legacyAssetScripts.clear();
+    _legacyFileScripts.clear();
     final results = <StoredScript>[];
     final assets = await _listAssetScripts();
     for (final asset in assets) {
@@ -200,10 +226,16 @@ class ScriptStorage {
         if (entity is! File) {
           continue;
         }
-        if (!entity.path.endsWith('.json')) {
+        final relative = entity.path
+            .substring(basePath.length + 1)
+            .replaceAll('\\', '/');
+        if (relative.endsWith('.py')) {
+          _legacyFileScripts.add(relative);
           continue;
         }
-        final relative = entity.path.substring(basePath.length + 1);
+        if (!relative.endsWith('.dart')) {
+          continue;
+        }
         final descriptor = _descriptorFromRelative(relative);
         if (descriptor == null) {
           continue;
@@ -252,6 +284,10 @@ class ScriptStorage {
 
   Future<List<String>> _listAssetScripts() async {
     if (_assetScriptPaths != null) {
+      final cachedLegacy = _assetLegacyScriptPaths;
+      if (cachedLegacy != null && cachedLegacy.isNotEmpty) {
+        _legacyAssetScripts.addAll(cachedLegacy);
+      }
       return _assetScriptPaths!;
     }
     try {
@@ -259,18 +295,31 @@ class ScriptStorage {
       final decoded = json.decode(manifest);
       if (decoded is! Map<String, dynamic>) {
         _assetScriptPaths = const <String>[];
+        _assetLegacyScriptPaths = const <String>{};
         return _assetScriptPaths!;
       }
       final scripts = <String>[];
+      final legacy = <String>{};
       decoded.forEach((key, value) {
-        if (key.startsWith('assets/scripts/') && key.endsWith('.json')) {
+        if (!key.startsWith('assets/scripts/')) {
+          return;
+        }
+        if (key.endsWith('.dart')) {
           scripts.add(key);
+          return;
+        }
+        if (key.endsWith('.py')) {
+          final relative = key.replaceFirst('assets/scripts/', '');
+          legacy.add(relative);
+          _legacyAssetScripts.add(relative);
         }
       });
       _assetScriptPaths = scripts;
+      _assetLegacyScriptPaths = legacy;
       return scripts;
     } catch (_) {
       _assetScriptPaths = const <String>[];
+      _assetLegacyScriptPaths = const <String>{};
       return _assetScriptPaths!;
     }
   }
@@ -287,7 +336,7 @@ class ScriptStorage {
     }
     final scopeSegment = segments.first;
     final fileName = segments.last;
-    if (!fileName.endsWith('.json')) {
+    if (!fileName.endsWith('.dart')) {
       return null;
     }
     final key = fileName.substring(0, fileName.length - 5);

@@ -34,6 +34,7 @@ mixin _ScriptTreeLogic on State<WorkbookNavigator> {
     }
     try {
       final scripts = await _runtime.storage.loadAll();
+      final warnings = _runtime.storage.migrationWarnings;
       if (!mounted) {
         return;
       }
@@ -42,7 +43,7 @@ mixin _ScriptTreeLogic on State<WorkbookNavigator> {
           ..clear()
           ..addAll(scripts);
         _scriptLibraryLoading = false;
-        _scriptLibraryError = null;
+        _scriptLibraryError = warnings.isEmpty ? null : warnings.join('\n');
       });
       _updateScriptTree();
     } catch (error) {

@@ -9,11 +9,11 @@ class ScriptDescriptor {
   String get fileName {
     switch (scope) {
       case ScriptScope.global:
-        return 'global/$key.json';
+        return 'global/$key.dart';
       case ScriptScope.page:
-        return 'pages/$key.json';
+        return 'pages/$key.dart';
       case ScriptScope.shared:
-        return 'shared/$key.json';
+        return 'shared/$key.dart';
     }
   }
 }
