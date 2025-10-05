@@ -332,20 +332,26 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         return;
       }
       setState(() {
+        final supportsFileSystem = storage.supportsFileSystem;
+        final loadedFromAsset = stored?.origin.startsWith('asset:') ?? false;
+
         _currentScriptDescriptor = tab.descriptor;
         _suppressScriptEditorChanges = true;
         tab.controller.text = stored?.source ?? '';
         _suppressScriptEditorChanges = false;
         tab.isDirty = false;
-        tab.isMutable = stored?.isMutable ?? false;
+        tab.isMutable = stored?.isMutable ?? supportsFileSystem;
         if (stored == null) {
-          tab.status = storage.supportsFileSystem
+          tab.status = supportsFileSystem
               ? 'Script OptimaScript introuvable pour ${tab.descriptor.fileName}.'
               :
                   'Script OptimaScript introuvable et édition indisponible sur cette plateforme (lecture seule).';
         } else if (!tab.isMutable) {
           tab.status =
               'Script OptimaScript chargé depuis ${stored.origin}. Édition indisponible sur cette plateforme (lecture seule).';
+        } else if (loadedFromAsset && supportsFileSystem) {
+          tab.status =
+              'Script OptimaScript chargé depuis ${stored.origin}. Une copie modifiable sera créée lors de la sauvegarde.';
         } else {
           tab.status = createdFromTemplate
               ? 'Script OptimaScript absent. Modèle par défaut créé et sauvegardé (${stored.origin}).'

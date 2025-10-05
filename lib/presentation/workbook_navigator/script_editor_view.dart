@@ -42,20 +42,18 @@ extension _ScriptEditorView on _WorkbookNavigatorState {
           child: Stack(
             children: [
               Positioned.fill(
-                child: IgnorePointer(
-                  ignoring: !isMutable,
-                  child: TopAlignedCodeField(
-                    controller: controller,
-                    expands: true,
-                    textStyle: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 13,
-                    ),
-                    lineNumberStyle: lineNumberStyle,
-                    padding: const EdgeInsets.all(12),
-                    background: theme.colorScheme.surface,
-                    textAlignVertical: TextAlignVertical.top,
+                child: TopAlignedCodeField(
+                  controller: controller,
+                  expands: true,
+                  textStyle: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 13,
                   ),
+                  lineNumberStyle: lineNumberStyle,
+                  padding: const EdgeInsets.all(12),
+                  background: theme.colorScheme.surface,
+                  textAlignVertical: TextAlignVertical.top,
+                  readOnly: !isMutable,
                 ),
               ),
               if (_scriptEditorLoading)
