@@ -109,26 +109,34 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         id: 'log',
         label: 'Ajouter un log',
         template: _normaliseCustomActionTemplate(
-          'await ctx.logMessage("[OptimaScript] Votre message");',
+          'final activeName = context.api.workbook.activeSheet?.name ?? '
+          '\'Aucune feuille active\';\n'
+          'final message = \'Feuille active : \' + activeName;\n'
+          'await context.callHost(\'log\', positional: <Object?>[message]);',
         ),
       ),
       CustomAction(
         id: 'if_event',
-        label: 'Tester un événement',
+        label: 'Vérifier une cellule',
         template: _normaliseCustomActionTemplate(
-          'if (ctx.eventType.wireName == "workbook.open") {\n'
-          '  await ctx.logMessage("Classeur ouvert");\n'
-          '}',
+          'final sheet = context.api.workbook.activeSheet;\n'
+          'final cell = sheet?.cellByLabel(\'A1\');\n'
+          'if (cell != null && cell.text.trim() == \'OK\') {\n'
+          '  await context.callHost(\'log\', positional: <Object?>[\'Cellule A1 validée\']);\n'
+          '} else {\n'
+          '  await context.callHost(\'log\', positional: <Object?>[\'Cellule A1 non conforme\']);\n'
+          '}\n',
         ),
       ),
       CustomAction(
         id: 'for_loop',
         label: 'Boucle sur les pages',
         template: _normaliseCustomActionTemplate(
-          'for (var index = 0; index < ctx.workbook.pages.length; index++) {\n'
-          '  final page = ctx.workbook.pages[index];\n'
-          '  await ctx.logMessage("\${index + 1}. \${page.name}");\n'
-          '}',
+          'for (var index = 0; index < context.api.workbook.sheetNames.length; index++) {\n'
+          '  final sheetName = context.api.workbook.sheetNames[index];\n'
+          '  final message = (index + 1).toString() + ". " + sheetName;\n'
+          '  await context.callHost(\'log\', positional: <Object?>[message]);\n'
+          '}\n',
         ),
       ),
     ]);
