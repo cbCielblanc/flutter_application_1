@@ -79,6 +79,7 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
   String? lines;
   String longestLine = '';
   int _lineNumberDigits = 1;
+  int _lineCount = 1;
 
   @override
   void initState() {
@@ -127,7 +128,8 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
     }
 
     _numberController?.text = buf.join('\n');
-    _lineNumberDigits = max(1, buf.length.toString().length);
+    _lineCount = max(1, buf.length);
+    _lineNumberDigits = max(1, _lineCount.toString().length);
 
     longestLine = '';
     for (final line in widget.controller.text.split('\n')) {
@@ -215,11 +217,20 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
     Container? numberCol;
 
     if (widget.lineNumbers) {
-      final digitSample = ''.padLeft(_lineNumberDigits, '0');
       final textDirection = Directionality.of(context);
+      final numberSampleSpan = widget.lineNumberBuilder?.call(
+            _lineCount,
+            numberTextStyle,
+          ) ??
+          TextSpan(
+            text: ''.padLeft(_lineNumberDigits, '0'),
+            style: numberTextStyle,
+          );
       final digitPainter = TextPainter(
-        text: TextSpan(text: digitSample, style: numberTextStyle),
+        text: numberSampleSpan,
         textDirection: textDirection,
+        textAlign: widget.lineNumberStyle.textAlign,
+        maxLines: 1,
       )..layout();
       const extraSpacing = 4.0;
       final horizontalPadding =
@@ -240,6 +251,7 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
         selectionControls: widget.selectionControls,
         expands: widget.expands,
         scrollController: _numberScroll,
+        textWidthBasis: TextWidthBasis.longestLine,
         decoration: InputDecoration(
           disabledBorder: InputBorder.none,
           isDense: widget.isDense,
