@@ -253,7 +253,6 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
         selectionControls: widget.selectionControls,
         expands: widget.expands,
         scrollController: _numberScroll,
-        textWidthBasis: TextWidthBasis.longestLine,
         decoration: InputDecoration(
           disabledBorder: InputBorder.none,
           isDense: widget.isDense,
