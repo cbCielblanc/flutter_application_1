@@ -52,7 +52,6 @@ extension _ScriptEditorView on _WorkbookNavigatorState {
                   lineNumberStyle: lineNumberStyle,
                   padding: const EdgeInsets.all(12),
                   background: theme.colorScheme.surface,
-                  textAlignVertical: TextAlignVertical.top,
                   readOnly: !isMutable,
                 ),
               ),
