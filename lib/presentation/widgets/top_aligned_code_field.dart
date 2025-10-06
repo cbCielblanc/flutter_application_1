@@ -1,12 +1,9 @@
-import 'dart:math';
-
 import 'package:code_text_field/code_text_field.dart';
 import 'package:flutter/material.dart';
 
-/// A local extension of the upstream [CodeField] widget that exposes
-/// [textAlignVertical] and keeps the editable content anchored to the top of
-/// the viewport when `expands: true`.
-class TopAlignedCodeField extends StatefulWidget {
+/// Wraps the upstream [CodeField] to keep the rest of the codebase API stable
+/// while exposing a `textAlignVertical` toggle for expanded layouts.
+class TopAlignedCodeField extends StatelessWidget {
   const TopAlignedCodeField({
     super.key,
     required this.controller,
@@ -62,122 +59,8 @@ class TopAlignedCodeField extends StatefulWidget {
   final TextAlignVertical textAlignVertical;
 
   @override
-  State<TopAlignedCodeField> createState() => _TopAlignedCodeFieldState();
-}
-
-class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
-  LinkedScrollControllerGroup? _controllers;
-  ScrollController? _numberScroll;
-  ScrollController? _codeScroll;
-  LineNumberController? _numberController;
-
-  FocusNode? _focusNode;
-  String longestLine = '';
-  int _lineNumberDigits = 1;
-  int _lineCount = 1;
-
-  @override
-  void initState() {
-    super.initState();
-    _controllers = LinkedScrollControllerGroup();
-    _numberScroll = _controllers?.addAndGet();
-    _codeScroll = _controllers?.addAndGet();
-    _numberController = LineNumberController(widget.lineNumberBuilder);
-    widget.controller.addListener(_onTextChanged);
-    _focusNode = widget.focusNode ?? FocusNode();
-    _focusNode!.onKey = _onKey;
-    _focusNode!.attach(context, onKey: _onKey);
-
-    _onTextChanged();
-  }
-
-  KeyEventResult _onKey(FocusNode node, RawKeyEvent event) {
-    if (widget.readOnly) {
-      return KeyEventResult.ignored;
-    }
-
-    return widget.controller.onKey(event);
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_onTextChanged);
-    _numberScroll?.dispose();
-    _codeScroll?.dispose();
-    _numberController?.dispose();
-    _numberController = null;
-    super.dispose();
-  }
-
-  void _onTextChanged() {
-    if (!mounted || _numberController == null) {
-      return;
-    }
-
-    final lines = widget.controller.text.split('\n');
-    final newLineCount = max(1, lines.length);
-    final newDigitWidth = max(1, newLineCount.toString().length);
-    final buf = <String>[];
-
-    for (var k = 0; k < lines.length; k++) {
-      buf.add((k + 1).toString().padLeft(newDigitWidth));
-    }
-
-    _numberController?.text = buf.join('\n');
-    _lineCount = newLineCount;
-    _lineNumberDigits = newDigitWidth;
-
-    longestLine = '';
-    for (final line in widget.controller.text.split('\n')) {
-      if (line.length > longestLine.length) {
-        longestLine = line;
-      }
-    }
-
-    setState(() {});
-  }
-
-  Widget _wrapInScrollView(
-    Widget codeField,
-    TextStyle textStyle,
-    double minWidth,
-  ) {
-    final leftPad = widget.lineNumberStyle.margin / 2;
-    final intrinsic = IntrinsicWidth(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: 0,
-              minWidth: max(minWidth - leftPad, 0),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Text(longestLine, style: textStyle),
-            ),
-          ),
-          widget.expands ? Expanded(child: codeField) : codeField,
-        ],
-      ),
-    );
-
-    return SingleChildScrollView(
-      padding: EdgeInsets.only(
-        left: leftPad,
-        right: widget.padding.right,
-      ),
-      scrollDirection: Axis.horizontal,
-      physics:
-          widget.horizontalScroll ? null : const NeverScrollableScrollPhysics(),
-      child: intrinsic,
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return CodeField(
+    final editor = CodeField(
       controller: controller,
       minLines: minLines,
       maxLines: maxLines,
@@ -202,6 +85,45 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
       lineNumbers: lineNumbers,
       horizontalScroll: horizontalScroll,
       selectionControls: selectionControls,
+    );
+
+    if (!expands || textAlignVertical == TextAlignVertical.top) {
+      return editor;
+    }
+
+    return _ExpandingAlignmentWrapper(
+      textAlignVertical: textAlignVertical,
+      child: editor,
+    );
+  }
+}
+
+class _ExpandingAlignmentWrapper extends StatelessWidget {
+  const _ExpandingAlignmentWrapper({
+    required this.textAlignVertical,
+    required this.child,
+  });
+
+  final TextAlignVertical textAlignVertical;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hasHeight = constraints.hasBoundedHeight &&
+            constraints.maxHeight != double.infinity;
+        final align = Alignment(0, textAlignVertical.y.clamp(-1.0, 1.0));
+
+        if (!hasHeight) {
+          return Align(alignment: align, child: child);
+        }
+
+        return SizedBox(
+          height: constraints.maxHeight,
+          child: Align(alignment: align, child: child),
+        );
+      },
     );
   }
 }
