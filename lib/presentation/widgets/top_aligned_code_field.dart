@@ -2,8 +2,6 @@ import 'dart:math';
 
 import 'package:code_text_field/code_text_field.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 
 /// A local extension of the upstream [CodeField] widget that exposes
 /// [textAlignVertical] and keeps the editable content anchored to the top of
@@ -35,7 +33,6 @@ class TopAlignedCodeField extends StatefulWidget {
     this.lineNumbers = true,
     this.horizontalScroll = true,
     this.selectionControls,
-    this.textAlignVertical = TextAlignVertical.top,
   });
 
   final SmartQuotesType? smartQuotesType;
@@ -180,147 +177,31 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
 
   @override
   Widget build(BuildContext context) {
-    const rootKey = 'root';
-    final defaultBg = Colors.grey.shade900;
-    final defaultText = Colors.grey.shade200;
-
-    final styles = CodeTheme.of(context)?.styles;
-    Color? backgroundCol =
-        widget.background ?? styles?[rootKey]?.backgroundColor ?? defaultBg;
-
-    if (widget.decoration != null) {
-      backgroundCol = null;
-    }
-
-    TextStyle textStyle = widget.textStyle ?? const TextStyle();
-    textStyle = textStyle.copyWith(
-      color: textStyle.color ?? styles?[rootKey]?.color ?? defaultText,
-      fontSize: textStyle.fontSize ?? 16.0,
-    );
-
-    TextStyle numberTextStyle =
-        widget.lineNumberStyle.textStyle ?? const TextStyle();
-    final numberColor =
-        (styles?[rootKey]?.color ?? defaultText).withOpacity(0.7);
-
-    numberTextStyle = numberTextStyle.copyWith(
-      color: numberTextStyle.color ?? numberColor,
-      fontSize: textStyle.fontSize,
-      fontFamily: textStyle.fontFamily,
-    );
-
-    final cursorColor =
-        widget.cursorColor ?? styles?[rootKey]?.color ?? defaultText;
-
-    TextField? lineNumberCol;
-    Container? numberCol;
-
-    if (widget.lineNumbers) {
-      final textDirection = Directionality.of(context);
-      final numberSampleSpan = widget.lineNumberBuilder?.call(
-            _lineCount,
-            numberTextStyle,
-          ) ??
-          TextSpan(
-            text: _lineCount.toString().padLeft(_lineNumberDigits),
-            style: numberTextStyle,
-          );
-      final digitPainter = TextPainter(
-        text: numberSampleSpan,
-        textDirection: textDirection,
-        textAlign: widget.lineNumberStyle.textAlign,
-        maxLines: 1,
-      )..layout();
-      const extraSpacing = 4.0;
-      final horizontalPadding =
-          widget.padding.left + widget.lineNumberStyle.margin / 2 + extraSpacing;
-      final computedNumberWidth = max<double>(
-        widget.lineNumberStyle.width,
-        digitPainter.width + horizontalPadding,
-      );
-
-      lineNumberCol = TextField(
-        smartQuotesType: widget.smartQuotesType,
-        scrollPadding: widget.padding,
-        style: numberTextStyle,
-        controller: _numberController,
-        enabled: false,
-        minLines: widget.minLines,
-        maxLines: widget.maxLines,
-        selectionControls: widget.selectionControls,
-        expands: widget.expands,
-        scrollController: _numberScroll,
-        decoration: InputDecoration(
-          disabledBorder: InputBorder.none,
-          isDense: widget.isDense,
-        ),
-        textAlign: widget.lineNumberStyle.textAlign,
-        textAlignVertical: widget.textAlignVertical,
-      );
-
-      numberCol = Container(
-        width: computedNumberWidth,
-        padding: EdgeInsets.only(
-          left: widget.padding.left,
-          right: widget.lineNumberStyle.margin / 2,
-        ),
-        color: widget.lineNumberStyle.background,
-        child: lineNumberCol,
-      );
-    }
-
-    final codeField = TextField(
-      keyboardType: widget.keyboardType,
-      smartQuotesType: widget.smartQuotesType,
-      focusNode: _focusNode,
-      onTap: widget.onTap,
-      scrollPadding: widget.padding,
-      style: textStyle,
-      controller: widget.controller,
-      minLines: widget.minLines,
-      selectionControls: widget.selectionControls,
-      maxLines: widget.maxLines,
-      expands: widget.expands,
-      scrollController: _codeScroll,
-      textAlignVertical: widget.textAlignVertical,
-      decoration: InputDecoration(
-        disabledBorder: InputBorder.none,
-        border: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        isDense: widget.isDense,
-      ),
+    return CodeField(
+      controller: controller,
+      minLines: minLines,
+      maxLines: maxLines,
+      expands: expands,
+      wrap: wrap,
+      background: background,
+      decoration: decoration,
+      textStyle: textStyle,
+      padding: padding,
+      lineNumberStyle: lineNumberStyle,
+      enabled: enabled,
+      onTap: onTap,
+      readOnly: readOnly,
       cursorColor: cursorColor,
-      autocorrect: false,
-      enableSuggestions: false,
-      enabled: widget.enabled,
-      onChanged: widget.onChanged,
-      readOnly: widget.readOnly,
-    );
-
-    final codeCol = Theme(
-      data: Theme.of(context).copyWith(
-        textSelectionTheme: widget.textSelectionTheme,
-      ),
-      child: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          return widget.wrap
-              ? codeField
-              : _wrapInScrollView(codeField, textStyle, constraints.maxWidth);
-        },
-      ),
-    );
-
-    return Container(
-      decoration: widget.decoration,
-      color: backgroundCol,
-      padding: !widget.lineNumbers ? const EdgeInsets.only(left: 8) : null,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (widget.lineNumbers && numberCol != null) numberCol,
-          Expanded(child: codeCol),
-        ],
-      ),
+      textSelectionTheme: textSelectionTheme,
+      lineNumberBuilder: lineNumberBuilder,
+      focusNode: focusNode,
+      onChanged: onChanged,
+      isDense: isDense,
+      smartQuotesType: smartQuotesType,
+      keyboardType: keyboardType,
+      lineNumbers: lineNumbers,
+      horizontalScroll: horizontalScroll,
+      selectionControls: selectionControls,
     );
   }
 }
