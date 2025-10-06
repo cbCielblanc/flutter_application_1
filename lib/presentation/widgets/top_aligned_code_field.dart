@@ -30,7 +30,8 @@ class TopAlignedCodeField extends StatelessWidget {
     this.lineNumbers = true,
     this.horizontalScroll = true,
     this.selectionControls,
-  });
+    TextAlignVertical? textAlignVertical,
+  }) : textAlignVertical = textAlignVertical ?? TextAlignVertical.top;
 
   final SmartQuotesType? smartQuotesType;
   final TextInputType? keyboardType;
