@@ -75,7 +75,8 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
       styles: isDark ? monokaiSublimeTheme : githubTheme,
     );
     final lineNumberStyle = LineNumberStyle(
-      width: 48,
+      width: 60,
+      margin: 4,
       textStyle: theme.textTheme.bodySmall,
     );
     final descriptor = _currentScriptDescriptor;
