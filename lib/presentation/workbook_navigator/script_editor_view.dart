@@ -35,6 +35,18 @@ extension _ScriptEditorView on _WorkbookNavigatorState {
         );
       }
 
+      TextSpan buildLineNumber(int line, TextStyle? style) {
+        final digits = line.toString();
+        final resolvedStyle = style ??
+            theme.textTheme.bodySmall?.copyWith(
+              fontFeatures: const [FontFeature.tabularFigures()],
+            );
+        final padded = digits.length >= _kMinimumLineNumberDigits
+            ? digits
+            : digits.padLeft(_kMinimumLineNumberDigits, _kFigureSpace);
+        return TextSpan(text: padded, style: resolvedStyle);
+      }
+
       final field = CodeTheme(
         data: codeTheme,
         child: DecoratedBox(
@@ -50,6 +62,7 @@ extension _ScriptEditorView on _WorkbookNavigatorState {
                     fontSize: 13,
                   ),
                   lineNumberStyle: lineNumberStyle,
+                  lineNumberBuilder: buildLineNumber,
                   padding: const EdgeInsets.all(12),
                   background: theme.colorScheme.surface,
                   readOnly: !isMutable,
