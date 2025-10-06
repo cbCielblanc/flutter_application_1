@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show FontFeature;
 
 import 'package:code_text_field/code_text_field.dart';
 import 'package:flutter/foundation.dart';
