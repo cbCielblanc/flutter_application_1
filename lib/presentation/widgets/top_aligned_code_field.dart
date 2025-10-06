@@ -188,6 +188,24 @@ class _CodeFieldWithAlignmentState extends State<_CodeFieldWithAlignment> {
     _onTextChanged();
   }
 
+  @override
+  void didUpdateWidget(covariant _CodeFieldWithAlignment oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onTextChanged);
+      widget.controller.addListener(_onTextChanged);
+      _onTextChanged();
+    }
+
+    if (oldWidget.lineNumberBuilder != widget.lineNumberBuilder) {
+      final oldController = _numberController;
+      _numberController = LineNumberController(widget.lineNumberBuilder);
+      oldController?.dispose();
+      _onTextChanged();
+    }
+  }
+
   KeyEventResult _onKey(FocusNode node, RawKeyEvent event) {
     if (widget.readOnly) {
       return KeyEventResult.ignored;
