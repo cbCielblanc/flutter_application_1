@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math';
 
 import 'package:code_text_field/code_text_field.dart';
@@ -6,8 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 
-/// A local copy of [CodeField] that exposes [textAlignVertical] so we can
-/// ensure the editable content stays anchored to the top of the editor.
+/// A local extension of the upstream [CodeField] widget that exposes
+/// [textAlignVertical] and keeps the editable content anchored to the top of
+/// the viewport when `expands: true`.
 class TopAlignedCodeField extends StatefulWidget {
   const TopAlignedCodeField({
     super.key,
@@ -74,9 +74,7 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
   ScrollController? _codeScroll;
   LineNumberController? _numberController;
 
-  StreamSubscription<bool>? _keyboardVisibilitySubscription;
   FocusNode? _focusNode;
-  String? lines;
   String longestLine = '';
   int _lineNumberDigits = 1;
   int _lineCount = 1;
@@ -111,7 +109,6 @@ class _TopAlignedCodeFieldState extends State<TopAlignedCodeField> {
     _codeScroll?.dispose();
     _numberController?.dispose();
     _numberController = null;
-    _keyboardVisibilitySubscription?.cancel();
     super.dispose();
   }
 
