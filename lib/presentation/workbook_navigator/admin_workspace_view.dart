@@ -72,7 +72,7 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
     final pages = workbook.pages;
     final isDark = theme.brightness == Brightness.dark;
     final codeTheme = CodeThemeData(
-      styles: isDark ? monokaiSublimeTheme : githubTheme,
+      styles: isDark ? vscodeDarkTheme : vscodeLightTheme,
     );
     final lineNumberStyle = LineNumberStyle(
       width: 48,
