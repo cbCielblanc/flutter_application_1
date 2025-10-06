@@ -88,7 +88,7 @@ class TopAlignedCodeField extends StatelessWidget {
       selectionControls: selectionControls,
     );
 
-    if (!expands || textAlignVertical == TextAlignVertical.top) {
+    if (!expands) {
       return editor;
     }
 
