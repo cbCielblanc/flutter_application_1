@@ -9,6 +9,7 @@ import 'domain/cell.dart';
 import 'domain/menu_page.dart';
 import 'domain/sheet.dart';
 import 'domain/workbook.dart';
+import 'services/workbook_storage.dart';
 import 'presentation/theme/app_theme.dart';
 import 'presentation/workbook_navigator/workbook_navigator.dart';
 
@@ -32,35 +33,81 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  late final ScriptRuntime _scriptRuntime;
-  late final WorkbookCommandManager _commandManager;
+  final WorkbookStorage _workbookStorage = WorkbookStorage();
+  ScriptRuntime? _scriptRuntime;
+  WorkbookCommandManager? _commandManager;
+  Future<void>? _saveOperation;
   AppMode _mode = AppMode.user;
+  bool _isLoading = true;
+  Object? _loadingError;
 
   @override
   void initState() {
     super.initState();
-    _commandManager = WorkbookCommandManager(
-      initialWorkbook: _createInitialWorkbook(),
-    );
-    final storage = ScriptStorage();
-    _scriptRuntime = ScriptRuntime(
-      storage: storage,
-      commandManager: _commandManager,
-    );
-    unawaited(_initialiseScripts());
+    unawaited(_initialiseApp());
   }
 
   @override
   void dispose() {
-    _scriptRuntime.detachNavigatorBinding();
-    unawaited(_scriptRuntime.dispatchWorkbookClose());
-    _commandManager.dispose();
+    _commandManager?.removeListener(_handleWorkbookChanged);
+    _commandManager?.dispose();
+    final runtime = _scriptRuntime;
+    runtime?.detachNavigatorBinding();
+    unawaited(runtime?.dispatchWorkbookClose() ?? Future.value());
     super.dispose();
   }
 
-  Future<void> _initialiseScripts() async {
-    await _scriptRuntime.initialize();
-    await _scriptRuntime.dispatchWorkbookOpen();
+  Future<void> _initialiseApp() async {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _loadingError = null;
+      });
+    }
+
+    _commandManager?.removeListener(_handleWorkbookChanged);
+    _commandManager?.dispose();
+    final previousRuntime = _scriptRuntime;
+    previousRuntime?.detachNavigatorBinding();
+    unawaited(previousRuntime?.dispatchWorkbookClose() ?? Future.value());
+
+    try {
+      final loadedWorkbook = await _workbookStorage.load();
+      final initialWorkbook = loadedWorkbook ?? _createInitialWorkbook();
+      final commandManager =
+          WorkbookCommandManager(initialWorkbook: initialWorkbook);
+      _commandManager = commandManager;
+      commandManager.addListener(_handleWorkbookChanged);
+
+      final scriptStorage = ScriptStorage();
+      final runtime =
+          ScriptRuntime(storage: scriptStorage, commandManager: commandManager);
+      _scriptRuntime = runtime;
+
+      await runtime.initialize();
+      await runtime.dispatchWorkbookOpen();
+
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoading = false;
+        _loadingError = null;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Failed to load workbook: $error\n$stackTrace');
+      _commandManager?.removeListener(_handleWorkbookChanged);
+      _commandManager?.dispose();
+      _commandManager = null;
+      _scriptRuntime = null;
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoading = false;
+        _loadingError = error;
+      });
+    }
   }
 
   void _updateMode(AppMode mode) {
@@ -68,6 +115,55 @@ class _MyAppState extends State<MyApp> {
       return;
     }
     setState(() => _mode = mode);
+  }
+
+  void _handleWorkbookChanged() {
+    _queueSave();
+  }
+
+  Future<void> _queueSave({bool showFeedback = false, BuildContext? context}) {
+    final operation = (_saveOperation ?? Future.value()).then((_) async {
+      await _performSave(showFeedback: showFeedback, context: context);
+    });
+    _saveOperation = operation.whenComplete(() {
+      if (identical(_saveOperation, operation)) {
+        _saveOperation = null;
+      }
+    });
+    return operation;
+  }
+
+  Future<void> _performSave({bool showFeedback = false, BuildContext? context}) async {
+    final commandManager = _commandManager;
+    if (commandManager == null) {
+      if (showFeedback && context != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aucun classeur à enregistrer.')),
+        );
+      }
+      return;
+    }
+    try {
+      final runtime = _scriptRuntime;
+      if (runtime != null) {
+        await runtime.dispatchWorkbookBeforeSave();
+      }
+      await _workbookStorage.save(commandManager.workbook);
+      if (showFeedback && context != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Classeur enregistré avec succès.')),
+        );
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Failed to save workbook: $error\n$stackTrace');
+      if (showFeedback && context != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de l\'enregistrement : $error'),
+          ),
+        );
+      }
+    }
   }
 
   Workbook _createInitialWorkbook() {
@@ -89,16 +185,57 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    final commandManager = _commandManager;
+    final runtime = _scriptRuntime;
+
+    Widget home;
+    if (_isLoading) {
+      home = const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    } else if (_loadingError != null || commandManager == null || runtime == null) {
+      home = Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 48),
+              const SizedBox(height: 16),
+              const Text('Impossible de charger le classeur.'),
+              if (_loadingError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _loadingError.toString(),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _initialiseApp,
+                child: const Text('Réessayer'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      home = WorkbookHome(
+        commandManager: commandManager,
+        scriptRuntime: runtime,
+        mode: _mode,
+        onModeChanged: _updateMode,
+        onSaveRequested: (context) =>
+            _queueSave(showFeedback: true, context: context),
+      );
+    }
+
     return MaterialApp(
       title: 'Classeur Optima',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: WorkbookHome(
-        commandManager: _commandManager,
-        scriptRuntime: _scriptRuntime,
-        mode: _mode,
-        onModeChanged: _updateMode,
-      ),
+      home: home,
     );
   }
 }
@@ -110,12 +247,14 @@ class WorkbookHome extends StatelessWidget {
     required this.scriptRuntime,
     required this.mode,
     required this.onModeChanged,
+    required this.onSaveRequested,
   });
 
   final WorkbookCommandManager commandManager;
   final ScriptRuntime scriptRuntime;
   final AppMode mode;
   final ValueChanged<AppMode> onModeChanged;
+  final Future<void> Function(BuildContext context) onSaveRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -128,20 +267,7 @@ class WorkbookHome extends StatelessWidget {
           IconButton(
             tooltip: 'Enregistrer le classeur',
             icon: const Icon(Icons.save_outlined),
-            onPressed: () async {
-              await scriptRuntime.dispatchWorkbookBeforeSave();
-              final snapshot = commandManager.workbook.toCsvMap();
-              final sheetCount = snapshot.length;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    sheetCount == 1
-                        ? 'Sauvegarde simulée : 1 feuille exportée'
-                        : 'Sauvegarde simulée : $sheetCount feuilles exportées',
-                  ),
-                ),
-              );
-            },
+            onPressed: () => onSaveRequested(context),
           ),
           _ModeSwitcher(mode: mode, onChanged: onModeChanged),
           const SizedBox(width: 12),
