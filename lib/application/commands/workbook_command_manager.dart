@@ -15,10 +15,12 @@ class WorkbookCommandManager extends ChangeNotifier {
 
   Workbook _workbook;
   int _activePageIndex = 0;
+  int _workbookRevision = 0;
   final HistoryService<WorkbookCommand> _history;
 
   Workbook get workbook => _workbook;
   int get activePageIndex => _activePageIndex;
+  int get workbookRevision => _workbookRevision;
   WorkbookPage? get activePage =>
       _workbook.pages.isEmpty ? null : _workbook.pages[_activePageIndex];
   int get activeSheetIndex {
@@ -115,10 +117,11 @@ class WorkbookCommandManager extends ChangeNotifier {
   }
 
   bool _applyResult(WorkbookCommandResult result) {
-    final previousWorkbook = _workbook;
     final previousIndex = _activePageIndex;
-    if (!identical(result.workbook, _workbook)) {
+    final hasWorkbookChanged = !identical(result.workbook, _workbook);
+    if (hasWorkbookChanged) {
       _workbook = result.workbook;
+      _workbookRevision++;
     }
 
     final desiredIndex = result.activePageIndex;
@@ -135,7 +138,6 @@ class WorkbookCommandManager extends ChangeNotifier {
       _activePageIndex = maxIndex < 0 ? 0 : maxIndex;
     }
 
-    final hasWorkbookChanged = !identical(previousWorkbook, _workbook);
     final hasIndexChanged = previousIndex != _activePageIndex;
     return hasWorkbookChanged || hasIndexChanged;
   }
