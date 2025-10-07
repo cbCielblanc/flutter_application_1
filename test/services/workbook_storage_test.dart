@@ -57,6 +57,45 @@ void main() {
       await storage.save(workbook);
       final file = File('${tempDir.path}/test_workbook.json');
       expect(await file.exists(), isTrue);
+      const expectedJson = '''{
+  "pages": [
+    {
+      "type": "menu",
+      "name": "Menu",
+      "layout": "grid",
+      "metadata": {
+        "layout": "grid",
+        "tree": {
+          "nodes": []
+        }
+      }
+    },
+    {
+      "type": "sheet",
+      "name": "Données",
+      "csv": "Produit,Quantité\nA,10\nB,5",
+      "metadata": {
+        "rowCount": 3,
+        "columnCount": 2
+      }
+    },
+    {
+      "type": "notes",
+      "name": "Notes",
+      "content": "Remarques importantes",
+      "metadata": {
+        "auteur": "Testeur",
+        "tags": [
+          "urgent",
+          "finance"
+        ],
+        "content": "Remarques importantes"
+      }
+    }
+  ]
+}''';
+      final jsonContent = await file.readAsString();
+      expect(jsonContent, expectedJson);
 
       final restored = await storage.load();
       expect(restored, isNotNull);
