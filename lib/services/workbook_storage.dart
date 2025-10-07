@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../domain/cell.dart';
 import '../domain/menu_page.dart';
 import '../domain/notes_page.dart';
 import '../domain/sheet.dart';
@@ -84,11 +85,19 @@ class WorkbookStorage {
 
     switch (type) {
       case 'sheet':
+        final metadata = _decodeMap(entry['metadata']);
+        final desiredRowCount = _parsePositiveInt(metadata['rowCount']);
+        final desiredColumnCount = _parsePositiveInt(metadata['columnCount']);
         final csv = entry['csv']?.toString();
         if (csv == null) {
           throw const FormatException('Sheet entries must include CSV data.');
         }
-        return Sheet.fromCsv(name: name, csv: csv);
+        final sheet = Sheet.fromCsv(name: name, csv: csv);
+        return _expandSheet(
+          sheet,
+          minRowCount: desiredRowCount,
+          minColumnCount: desiredColumnCount,
+        );
       case 'notes':
         final metadata = _decodeMap(entry['metadata']);
         final content = entry['content']?.toString() ??
@@ -154,5 +163,58 @@ class WorkbookStorage {
       return value.map((key, dynamic v) => MapEntry(key.toString(), v));
     }
     return <String, Object?>{};
+  }
+
+  Sheet _expandSheet(
+    Sheet sheet, {
+    int? minRowCount,
+    int? minColumnCount,
+  }) {
+    final targetRowCount =
+        minRowCount != null && minRowCount > sheet.rowCount
+            ? minRowCount
+            : sheet.rowCount;
+    final targetColumnCount =
+        minColumnCount != null && minColumnCount > sheet.columnCount
+            ? minColumnCount
+            : sheet.columnCount;
+
+    if (targetRowCount == sheet.rowCount &&
+        targetColumnCount == sheet.columnCount) {
+      return sheet;
+    }
+
+    final paddedRows = List<List<Cell>>.generate(targetRowCount, (row) {
+      final existingRow = row < sheet.rowCount ? sheet.rows[row] : const <Cell>[];
+      return List<Cell>.generate(targetColumnCount, (column) {
+        if (column < existingRow.length) {
+          final cell = existingRow[column];
+          return Cell(
+            row: row,
+            column: column,
+            type: cell.type,
+            value: cell.value,
+          );
+        }
+        return Cell(row: row, column: column, type: CellType.empty, value: null);
+      }, growable: false);
+    }, growable: false);
+
+    return Sheet(name: sheet.name, rows: paddedRows);
+  }
+
+  int? _parsePositiveInt(Object? value) {
+    if (value is int) {
+      return value > 0 ? value : null;
+    }
+    if (value is double) {
+      final intValue = value.toInt();
+      return intValue > 0 ? intValue : null;
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null || parsed <= 0) {
+      return null;
+    }
+    return parsed;
   }
 }

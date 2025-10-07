@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flutter_application_1/domain/cell.dart';
 import 'package:flutter_application_1/domain/menu_page.dart';
 import 'package:flutter_application_1/domain/notes_page.dart';
 import 'package:flutter_application_1/domain/sheet.dart';
@@ -78,6 +80,32 @@ void main() {
       expect(notesPage.content, equals('Remarques importantes'));
       expect(notesPage.metadata['auteur'], equals('Testeur'));
       expect(notesPage.metadata['tags'], containsAll(['urgent', 'finance']));
+    });
+
+    test('pads sheet dimensions using metadata when CSV data is truncated', () async {
+      final file = File('${tempDir.path}/test_workbook.json');
+      await file.writeAsString(
+        jsonEncode({
+          'pages': [
+            {
+              'type': 'sheet',
+              'name': 'Feuille 1',
+              'csv': 'Titre 1,Titre 2',
+              'metadata': {'rowCount': 3, 'columnCount': 4},
+            },
+          ],
+        }),
+      );
+
+      final restored = await storage.load();
+      expect(restored, isNotNull);
+      final sheet = restored!.sheets.first;
+      expect(sheet.rowCount, equals(3));
+      expect(sheet.columnCount, equals(4));
+      expect(sheet.rows[0][0].value, equals('Titre 1'));
+      expect(sheet.rows[0][1].value, equals('Titre 2'));
+      expect(sheet.rows[2][3].type, equals(CellType.empty));
+      expect(sheet.rows[2][3].value, isNull);
     });
   });
 }
