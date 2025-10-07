@@ -312,7 +312,6 @@ class ScriptRuntime {
           ),
         ),
       );
-      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 

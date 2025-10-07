@@ -161,7 +161,7 @@ void main() {
       expect(invoked, isTrue);
     });
 
-    test('propagates errors thrown by callbacks with formatted logs', () async {
+    test('logs errors thrown by callbacks without crashing', () async {
       final storage = _InMemoryScriptStorage();
       final descriptor = const ScriptDescriptor(scope: ScriptScope.global, key: 'default');
       storage.addScript(
@@ -189,10 +189,7 @@ void main() {
         FlutterError.onError = previousOnError;
       });
 
-      await expectLater(
-        runtime.dispatchWorkbookOpen(),
-        throwsA(isA<StateError>()),
-      );
+      await runtime.dispatchWorkbookOpen();
 
       expect(logs, isNotEmpty);
       expect(logs.first, contains('Erreur script détectée'));
