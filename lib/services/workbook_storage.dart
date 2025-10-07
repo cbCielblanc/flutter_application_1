@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -68,8 +69,7 @@ class WorkbookStorage {
     final file = await _resolveFile(createDirectory: true);
     final encodedPages = workbook.pages.map(_encodePage).toList();
     final payload = {'pages': encodedPages};
-    final encoder = const JsonEncoder.withIndent('  ');
-    final json = encoder.convert(payload);
+    final json = await Isolate.run(() => _encodeWorkbookPayload(payload));
     await file.writeAsString(json, flush: true);
   }
 
@@ -217,4 +217,14 @@ class WorkbookStorage {
     }
     return parsed;
   }
+}
+
+/// Encodes a workbook [payload] to JSON using a background-friendly routine.
+///
+/// Only JSON-serialisable data (maps, lists, strings, numbers, booleans or
+/// `null`) should be provided because this function is executed on a separate
+/// isolate.
+String _encodeWorkbookPayload(Map<String, Object?> payload) {
+  final encoder = const JsonEncoder.withIndent('  ');
+  return encoder.convert(payload);
 }
