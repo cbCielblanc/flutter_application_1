@@ -10,7 +10,6 @@ import 'domain/cell.dart';
 import 'domain/menu_page.dart';
 import 'domain/sheet.dart';
 import 'domain/workbook.dart';
-import 'services/workbook_storage.dart';
 import 'presentation/theme/app_theme.dart';
 import 'presentation/workbook_navigator/workbook_navigator.dart';
 
@@ -22,7 +21,6 @@ extension AppModeLabel on AppMode {
       this == AppMode.user ? Icons.person_outline : Icons.admin_panel_settings;
 }
 
-typedef WorkbookStorageBuilder = WorkbookStorage Function();
 typedef ScriptStorageBuilder = ScriptStorage Function();
 typedef ScriptRuntimeBuilder = ScriptRuntime Function(
   ScriptStorage storage,
@@ -36,12 +34,12 @@ void main() {
 class MyApp extends StatefulWidget {
   const MyApp({
     super.key,
-    this.workbookStorageBuilder,
+    this.workbookFactory,
     this.scriptStorageBuilder,
     this.scriptRuntimeBuilder,
   });
 
-  final WorkbookStorageBuilder? workbookStorageBuilder;
+  final Workbook Function()? workbookFactory;
   final ScriptStorageBuilder? scriptStorageBuilder;
   final ScriptRuntimeBuilder? scriptRuntimeBuilder;
 
@@ -50,14 +48,11 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  late final WorkbookStorage _workbookStorage;
   ScriptRuntime? _scriptRuntime;
   WorkbookCommandManager? _commandManager;
-  Future<void>? _saveOperation;
   AppMode _mode = AppMode.user;
   bool _isLoading = true;
   Object? _loadingError;
-  int _lastSavedRevision = 0;
 
   ScriptStorage _createScriptStorage() {
     final builder = widget.scriptStorageBuilder ?? ScriptStorage.new;
@@ -77,14 +72,11 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _workbookStorage =
-        (widget.workbookStorageBuilder ?? WorkbookStorage.new)();
     unawaited(_initialiseApp());
   }
 
   @override
   void dispose() {
-    _commandManager?.removeListener(_handleWorkbookChanged);
     _commandManager?.dispose();
     final runtime = _scriptRuntime;
     runtime?.detachNavigatorBinding();
@@ -100,20 +92,17 @@ class _MyAppState extends State<MyApp> {
       });
     }
 
-    _commandManager?.removeListener(_handleWorkbookChanged);
     _commandManager?.dispose();
     final previousRuntime = _scriptRuntime;
     previousRuntime?.detachNavigatorBinding();
     unawaited(previousRuntime?.dispatchWorkbookClose() ?? Future.value());
 
     try {
-      final loadedWorkbook = await _workbookStorage.load();
-      final initialWorkbook = loadedWorkbook ?? _createInitialWorkbook();
+      final initialWorkbook =
+          widget.workbookFactory?.call() ?? _createInitialWorkbook();
       final commandManager =
           WorkbookCommandManager(initialWorkbook: initialWorkbook);
       _commandManager = commandManager;
-      commandManager.addListener(_handleWorkbookChanged);
-      _lastSavedRevision = commandManager.workbookRevision;
 
       final scriptStorage = _createScriptStorage();
       final runtime = _createScriptRuntime(scriptStorage, commandManager);
@@ -131,11 +120,9 @@ class _MyAppState extends State<MyApp> {
       });
     } catch (error, stackTrace) {
       debugPrint('Failed to load workbook: $error\n$stackTrace');
-      _commandManager?.removeListener(_handleWorkbookChanged);
       _commandManager?.dispose();
       _commandManager = null;
       _scriptRuntime = null;
-      _lastSavedRevision = 0;
       if (!mounted) {
         return;
       }
@@ -153,60 +140,19 @@ class _MyAppState extends State<MyApp> {
     setState(() => _mode = mode);
   }
 
-  void _handleWorkbookChanged() {
-    final commandManager = _commandManager;
-    if (commandManager == null) {
+  Future<void> _handleSaveRequested(BuildContext context) async {
+    final runtime = _scriptRuntime;
+    if (runtime != null) {
+      await runtime.dispatchWorkbookBeforeSave();
+    }
+    if (!mounted) {
       return;
     }
-    if (commandManager.workbookRevision <= _lastSavedRevision) {
-      return;
-    }
-  }
-
-  Future<void> _queueSave({bool showFeedback = false, BuildContext? context}) {
-    final operation = (_saveOperation ?? Future.value()).then((_) async {
-      await _performSave(showFeedback: showFeedback, context: context);
-    });
-    _saveOperation = operation.whenComplete(() {
-      if (identical(_saveOperation, operation)) {
-        _saveOperation = null;
-      }
-    });
-    return operation;
-  }
-
-  Future<void> _performSave({bool showFeedback = false, BuildContext? context}) async {
-    final commandManager = _commandManager;
-    if (commandManager == null) {
-      if (showFeedback && context != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Aucun classeur à enregistrer.')),
-        );
-      }
-      return;
-    }
-    try {
-      final runtime = _scriptRuntime;
-      if (runtime != null) {
-        await runtime.dispatchWorkbookBeforeSave();
-      }
-      await _workbookStorage.save(commandManager.workbook);
-      _lastSavedRevision = commandManager.workbookRevision;
-      if (showFeedback && context != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Classeur enregistré avec succès.')),
-        );
-      }
-    } catch (error, stackTrace) {
-      debugPrint('Failed to save workbook: $error\n$stackTrace');
-      if (showFeedback && context != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur lors de l\'enregistrement : $error'),
-          ),
-        );
-      }
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('La sauvegarde des feuilles est désactivée.'),
+      ),
+    );
   }
 
   Workbook _createInitialWorkbook() {
@@ -228,9 +174,6 @@ class _MyAppState extends State<MyApp> {
 
   @visibleForTesting
   WorkbookCommandManager? get commandManagerForTesting => _commandManager;
-
-  @visibleForTesting
-  int get lastSavedRevisionForTesting => _lastSavedRevision;
 
   @override
   Widget build(BuildContext context) {
@@ -275,8 +218,7 @@ class _MyAppState extends State<MyApp> {
         scriptRuntime: runtime,
         mode: _mode,
         onModeChanged: _updateMode,
-        onSaveRequested: (context) =>
-            _queueSave(showFeedback: true, context: context),
+        onSaveRequested: _handleSaveRequested,
       );
     }
 

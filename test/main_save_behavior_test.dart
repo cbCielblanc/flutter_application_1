@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -11,10 +9,9 @@ import 'package:flutter_application_1/domain/menu_page.dart';
 import 'package:flutter_application_1/domain/sheet.dart';
 import 'package:flutter_application_1/domain/workbook.dart';
 import 'package:flutter_application_1/main.dart';
-import 'package:flutter_application_1/services/workbook_storage.dart';
 
 void main() {
-  testWidgets('tab changes do not trigger saves while cell edits do',
+  testWidgets('save button triggers script hook and shows disabled message',
       (tester) async {
     final workbook = Workbook(
       pages: [
@@ -24,13 +21,18 @@ void main() {
         ]),
       ],
     );
-    final storage = _TestWorkbookStorage(initialWorkbook: workbook);
+    late _TestScriptRuntime runtime;
 
     await tester.pumpWidget(MyApp(
-      workbookStorageBuilder: () => storage,
+      workbookFactory: () => workbook,
       scriptStorageBuilder: ScriptStorage.new,
-      scriptRuntimeBuilder: (scriptStorage, commandManager) =>
-          _TestScriptRuntime(storage: scriptStorage, commandManager: commandManager),
+      scriptRuntimeBuilder: (scriptStorage, commandManager) {
+        runtime = _TestScriptRuntime(
+          storage: scriptStorage,
+          commandManager: commandManager,
+        );
+        return runtime;
+      },
     ));
 
     await tester.pump();
@@ -42,11 +44,14 @@ void main() {
         (state as dynamic).commandManagerForTesting as WorkbookCommandManager?;
     expect(commandManager, isNotNull);
 
-    expect(storage.saveCallCount, 0);
+    expect(runtime.initializeCallCount, 1);
+    expect(runtime.openCallCount, 1);
+    expect(runtime.beforeSaveCallCount, 0);
 
     commandManager!.setActivePage(1);
     await tester.pump();
-    expect(storage.saveCallCount, 0, reason: 'Tab change should not trigger save');
+    expect(runtime.beforeSaveCallCount, 0,
+        reason: 'Tab change should not trigger script save hook');
 
     final sheetName = commandManager.workbook.sheets.first.name;
     final changed = commandManager.execute(SetCellValueCommand(
@@ -61,34 +66,23 @@ void main() {
     await tester.pump(const Duration(milliseconds: 10));
     await tester.pumpAndSettle();
 
-    expect(storage.saveCallCount, 0,
-        reason: 'Cell edit should not trigger a workbook save automatically');
+    expect(runtime.beforeSaveCallCount, 0,
+        reason: 'Cell edit should not trigger script save hook automatically');
 
     await tester.tap(find.byIcon(Icons.save_outlined));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
     await tester.pumpAndSettle();
 
-    expect(storage.saveCallCount, 1,
-        reason: 'Manual save should persist workbook changes');
+    expect(runtime.beforeSaveCallCount, 1,
+        reason: 'Manual save should trigger script hook');
+    expect(find.text('La sauvegarde des feuilles est désactivée.'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+
+    expect(runtime.closeCallCount, 1);
   });
-}
-
-class _TestWorkbookStorage extends WorkbookStorage {
-  _TestWorkbookStorage({required Workbook initialWorkbook})
-      : _initialWorkbook = initialWorkbook,
-        super(appSupportDirectoryProvider: () async => Directory.systemTemp);
-
-  final Workbook _initialWorkbook;
-  int saveCallCount = 0;
-
-  @override
-  Future<Workbook?> load() async => _initialWorkbook;
-
-  @override
-  Future<void> save(Workbook workbook) async {
-    saveCallCount++;
-  }
 }
 
 class _TestScriptRuntime extends ScriptRuntime {
@@ -97,18 +91,31 @@ class _TestScriptRuntime extends ScriptRuntime {
     required super.commandManager,
   });
 
-  @override
-  Future<void> initialize() async {}
+  int initializeCallCount = 0;
+  int openCallCount = 0;
+  int closeCallCount = 0;
+  int beforeSaveCallCount = 0;
 
   @override
-  Future<void> dispatchWorkbookOpen() async {}
+  Future<void> initialize() async {
+    initializeCallCount++;
+  }
 
   @override
-  Future<void> dispatchWorkbookClose() async {}
+  Future<void> dispatchWorkbookOpen() async {
+    openCallCount++;
+  }
+
+  @override
+  Future<void> dispatchWorkbookClose() async {
+    closeCallCount++;
+  }
 
   @override
   Future<void> dispatchWorkbookBeforeSave({
     bool saveAs = false,
     bool isAutoSave = false,
-  }) async {}
+  }) async {
+    beforeSaveCallCount++;
+  }
 }
