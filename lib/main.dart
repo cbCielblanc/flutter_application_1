@@ -1,6 +1,7 @@
 ﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:meta/meta.dart';
 
 import 'application/commands/workbook_command_manager.dart';
 import 'application/scripts/runtime.dart';
@@ -21,29 +22,63 @@ extension AppModeLabel on AppMode {
       this == AppMode.user ? Icons.person_outline : Icons.admin_panel_settings;
 }
 
+typedef WorkbookStorageBuilder = WorkbookStorage Function();
+typedef ScriptStorageBuilder = ScriptStorage Function();
+typedef ScriptRuntimeBuilder = ScriptRuntime Function(
+  ScriptStorage storage,
+  WorkbookCommandManager commandManager,
+);
+
 void main() {
   runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  const MyApp({
+    super.key,
+    this.workbookStorageBuilder,
+    this.scriptStorageBuilder,
+    this.scriptRuntimeBuilder,
+  });
+
+  final WorkbookStorageBuilder? workbookStorageBuilder;
+  final ScriptStorageBuilder? scriptStorageBuilder;
+  final ScriptRuntimeBuilder? scriptRuntimeBuilder;
 
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
-  final WorkbookStorage _workbookStorage = WorkbookStorage();
+  late final WorkbookStorage _workbookStorage;
   ScriptRuntime? _scriptRuntime;
   WorkbookCommandManager? _commandManager;
   Future<void>? _saveOperation;
   AppMode _mode = AppMode.user;
   bool _isLoading = true;
   Object? _loadingError;
+  int _lastSavedRevision = 0;
+
+  ScriptStorage _createScriptStorage() {
+    final builder = widget.scriptStorageBuilder ?? ScriptStorage.new;
+    return builder();
+  }
+
+  ScriptRuntime _createScriptRuntime(
+    ScriptStorage storage,
+    WorkbookCommandManager commandManager,
+  ) {
+    final builder = widget.scriptRuntimeBuilder ??
+        ((scriptStorage, manager) =>
+            ScriptRuntime(storage: scriptStorage, commandManager: manager));
+    return builder(storage, commandManager);
+  }
 
   @override
   void initState() {
     super.initState();
+    _workbookStorage =
+        (widget.workbookStorageBuilder ?? WorkbookStorage.new)();
     unawaited(_initialiseApp());
   }
 
@@ -78,10 +113,10 @@ class _MyAppState extends State<MyApp> {
           WorkbookCommandManager(initialWorkbook: initialWorkbook);
       _commandManager = commandManager;
       commandManager.addListener(_handleWorkbookChanged);
+      _lastSavedRevision = commandManager.workbookRevision;
 
-      final scriptStorage = ScriptStorage();
-      final runtime =
-          ScriptRuntime(storage: scriptStorage, commandManager: commandManager);
+      final scriptStorage = _createScriptStorage();
+      final runtime = _createScriptRuntime(scriptStorage, commandManager);
       _scriptRuntime = runtime;
 
       await runtime.initialize();
@@ -100,6 +135,7 @@ class _MyAppState extends State<MyApp> {
       _commandManager?.dispose();
       _commandManager = null;
       _scriptRuntime = null;
+      _lastSavedRevision = 0;
       if (!mounted) {
         return;
       }
@@ -118,6 +154,13 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _handleWorkbookChanged() {
+    final commandManager = _commandManager;
+    if (commandManager == null) {
+      return;
+    }
+    if (commandManager.workbookRevision <= _lastSavedRevision) {
+      return;
+    }
     _queueSave();
   }
 
@@ -149,6 +192,7 @@ class _MyAppState extends State<MyApp> {
         await runtime.dispatchWorkbookBeforeSave();
       }
       await _workbookStorage.save(commandManager.workbook);
+      _lastSavedRevision = commandManager.workbookRevision;
       if (showFeedback && context != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Classeur enregistré avec succès.')),
@@ -182,6 +226,12 @@ class _MyAppState extends State<MyApp> {
     final menu = MenuPage(name: 'Menu principal');
     return Workbook(pages: [menu, sheet]);
   }
+
+  @visibleForTesting
+  WorkbookCommandManager? get commandManagerForTesting => _commandManager;
+
+  @visibleForTesting
+  int get lastSavedRevisionForTesting => _lastSavedRevision;
 
   @override
   Widget build(BuildContext context) {
