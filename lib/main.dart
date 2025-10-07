@@ -84,7 +84,6 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
-    _commandManager?.removeListener(_handleWorkbookChanged);
     _commandManager?.dispose();
     final runtime = _scriptRuntime;
     runtime?.detachNavigatorBinding();
@@ -100,7 +99,6 @@ class _MyAppState extends State<MyApp> {
       });
     }
 
-    _commandManager?.removeListener(_handleWorkbookChanged);
     _commandManager?.dispose();
     final previousRuntime = _scriptRuntime;
     previousRuntime?.detachNavigatorBinding();
@@ -112,7 +110,6 @@ class _MyAppState extends State<MyApp> {
       final commandManager =
           WorkbookCommandManager(initialWorkbook: initialWorkbook);
       _commandManager = commandManager;
-      commandManager.addListener(_handleWorkbookChanged);
       _lastSavedRevision = commandManager.workbookRevision;
 
       final scriptStorage = _createScriptStorage();
@@ -131,7 +128,6 @@ class _MyAppState extends State<MyApp> {
       });
     } catch (error, stackTrace) {
       debugPrint('Failed to load workbook: $error\n$stackTrace');
-      _commandManager?.removeListener(_handleWorkbookChanged);
       _commandManager?.dispose();
       _commandManager = null;
       _scriptRuntime = null;
@@ -153,17 +149,6 @@ class _MyAppState extends State<MyApp> {
     setState(() => _mode = mode);
   }
 
-  void _handleWorkbookChanged() {
-    final commandManager = _commandManager;
-    if (commandManager == null) {
-      return;
-    }
-    if (commandManager.workbookRevision <= _lastSavedRevision) {
-      return;
-    }
-    _queueSave();
-  }
-
   Future<void> _queueSave({bool showFeedback = false, BuildContext? context}) {
     final operation = (_saveOperation ?? Future.value()).then((_) async {
       await _performSave(showFeedback: showFeedback, context: context);
@@ -182,6 +167,14 @@ class _MyAppState extends State<MyApp> {
       if (showFeedback && context != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Aucun classeur à enregistrer.')),
+        );
+      }
+      return;
+    }
+    if (commandManager.workbookRevision <= _lastSavedRevision) {
+      if (showFeedback && context != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aucune modification à enregistrer.')),
         );
       }
       return;
