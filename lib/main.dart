@@ -161,7 +161,6 @@ class _MyAppState extends State<MyApp> {
     if (commandManager.workbookRevision <= _lastSavedRevision) {
       return;
     }
-    _queueSave();
   }
 
   Future<void> _queueSave({bool showFeedback = false, BuildContext? context}) {

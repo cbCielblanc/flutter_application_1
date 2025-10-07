@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flutter_application_1/application/commands/set_cell_value_command.dart';
@@ -60,8 +61,16 @@ void main() {
     await tester.pump(const Duration(milliseconds: 10));
     await tester.pumpAndSettle();
 
+    expect(storage.saveCallCount, 0,
+        reason: 'Cell edit should not trigger a workbook save automatically');
+
+    await tester.tap(find.byIcon(Icons.save_outlined));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10));
+    await tester.pumpAndSettle();
+
     expect(storage.saveCallCount, 1,
-        reason: 'Cell edit should trigger a workbook save');
+        reason: 'Manual save should persist workbook changes');
   });
 }
 
