@@ -91,6 +91,49 @@ Future<void> onWorkbookOpen(ScriptContext context) async {
       );
     });
 
+    test('compiled scripts can access the context payload', () async {
+      const descriptor = ScriptDescriptor(
+        scope: ScriptScope.global,
+        key: 'payload',
+      );
+      const source = '''
+import 'package:optimascript/api.dart';
+
+Future<void> onWorkbookOpen(ScriptContext context) async {
+  final payload = context.toPayload();
+  await context.logMessage(payload['event'] as String);
+}
+''';
+
+      final engine = DartScriptEngine();
+      final module = await engine.loadModule(
+        descriptor: descriptor,
+        source: source,
+      );
+
+      final export = module['onWorkbookOpen'];
+      expect(export, isNotNull);
+
+      final workbook = Workbook(
+        pages: [
+          Sheet.fromRows(name: 'Feuille 1', rows: const [<Object?>[null]]),
+        ],
+      );
+      final manager = WorkbookCommandManager(initialWorkbook: workbook);
+      final logs = <String>[];
+      final context = ScriptContext(
+        descriptor: descriptor,
+        eventType: ScriptEventType.workbookOpen,
+        workbook: workbook,
+        commandManager: manager,
+        log: logs.add,
+      );
+
+      await export!.call(context);
+
+      expect(logs, <String>['workbook.open']);
+    });
+
     test('throws when invoking an unknown host function', () async {
       const descriptor = ScriptDescriptor(
         scope: ScriptScope.global,

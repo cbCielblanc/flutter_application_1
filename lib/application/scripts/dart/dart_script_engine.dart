@@ -263,6 +263,7 @@ import 'dart:async';
 abstract class ScriptContext {
   ScriptApi get api;
   FutureOr<void> logMessage(String message);
+  Map<String, Object?> toPayload();
   FutureOr<void> callHost(
     String name, {
     List<Object?> positional = const <Object?>[],
@@ -446,6 +447,13 @@ class $ScriptContext implements $Instance {
           namedParams: const [],
         ),
       ),
+      'toPayload': BridgeMethodDef(
+        BridgeFunctionDef(
+          returns: BridgeTypeAnnotation(
+            BridgeTypeRef(CoreTypes.map),
+          ),
+        ),
+      ),
       'callHost': BridgeMethodDef(
         BridgeFunctionDef(
           returns: BridgeTypeAnnotation(
@@ -510,6 +518,8 @@ class $ScriptContext implements $Instance {
     switch (identifier) {
       case 'logMessage':
         return _logMessage;
+      case 'toPayload':
+        return _toPayload;
       case 'callHost':
         return _callHost;
       case 'api':
@@ -536,6 +546,24 @@ class $ScriptContext implements $Instance {
     final message = raw is String ? raw : raw?.toString() ?? '';
     final future = Future.sync(() => instance.$value.logMessage(message));
     return $Future.wrap(future.then((value) => value));
+  }
+
+  static const $Function _toPayload = $Function(_invokeToPayload);
+
+  static $Value? _invokeToPayload(
+    Runtime runtime,
+    $Value? target,
+    List<$Value?> args,
+  ) {
+    final instance = target as $ScriptContext;
+    final payload = instance.$value.toPayload();
+    return wrapMap<String, Object?>(
+      payload,
+      (key, value) => MapEntry<$Value, $Value>(
+        $String(key),
+        $CellApi._wrapValue(value) ?? const $null(),
+      ),
+    );
   }
 
   static const $Function _callHost = $Function(_invokeCallHost);
