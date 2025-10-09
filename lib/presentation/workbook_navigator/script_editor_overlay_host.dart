@@ -62,9 +62,6 @@ class _ScriptEditorOverlayHostState extends State<_ScriptEditorOverlayHost> {
         return;
       }
       final overlay = Overlay.of(context, rootOverlay: true);
-      if (overlay == null) {
-        return;
-      }
       _entry = OverlayEntry(
         builder: (context) => widget.overlayBuilder(context),
       );

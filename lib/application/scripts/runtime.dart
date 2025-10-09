@@ -4,14 +4,12 @@ import 'package:flutter/foundation.dart';
 
 import '../../domain/notes_page.dart';
 import '../../domain/sheet.dart';
-import '../../domain/workbook.dart';
 import '../../domain/workbook_page.dart';
 import '../../state/sheet_selection_state.dart';
 import '../commands/workbook_command_manager.dart';
 import 'context.dart';
 import 'models.dart';
 import 'navigator_binding.dart';
-import 'scope.dart';
 import 'storage.dart';
 
 typedef ScriptLogSink = FutureOr<void> Function(String message);

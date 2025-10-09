@@ -10,7 +10,6 @@ import '../commands/workbook_command_manager.dart';
 import 'api/api.dart';
 import 'models.dart';
 import 'navigator_binding.dart';
-import 'scope.dart';
 
 typedef ScriptContextLog = FutureOr<void> Function(String message);
 

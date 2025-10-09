@@ -154,17 +154,6 @@ mixin _WorkbookPagesLogic on State<WorkbookNavigator> {
     return true;
   }
 
-  void _handleRemoveSheet(int sheetIndex) {
-    _commitActiveSelectionEdits();
-    final workbook = _manager.workbook;
-    if (sheetIndex < 0 || sheetIndex >= workbook.sheets.length) {
-      return;
-    }
-    final sheetName = workbook.sheets[sheetIndex].name;
-    _selectionStates.remove(sheetName)?.dispose();
-    _manager.execute(RemoveSheetCommand(sheetIndex: sheetIndex));
-  }
-
   void _commitActiveSelectionEdits() {
     _commitEditsForPage(_manager.workbook, _manager.activePageIndex);
   }

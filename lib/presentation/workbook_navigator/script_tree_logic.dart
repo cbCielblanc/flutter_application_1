@@ -5,9 +5,7 @@ mixin _ScriptTreeLogic on State<WorkbookNavigator> {
   ScriptRuntime get _runtime;
   WorkbookCommandManager get _manager;
   List<StoredScript> get _scriptLibrary;
-  bool get _scriptLibraryLoading;
   set _scriptLibraryLoading(bool value);
-  String? get _scriptLibraryError;
   set _scriptLibraryError(String? value);
   List<_ScriptTreeNode> get _scriptTreeNodes;
   Map<String, String?> get _scriptTreeParents;
@@ -17,12 +15,9 @@ mixin _ScriptTreeLogic on State<WorkbookNavigator> {
   set _activeScriptNodeId(String? value);
   ScriptScope get _scriptEditorScope;
   String? get _scriptEditorPageName;
-  set _scriptEditorPageName(String? value);
   String get _scriptSharedKey;
-  set _scriptSharedKey(String value);
-  TextEditingController get _sharedScriptKeyController;
 
-  Future<void> _refreshScriptLibrary({bool silent = false}) async {
+  Future<void> refreshScriptLibrary({bool silent = false}) async {
     if (!_isAdmin) {
       return;
     }

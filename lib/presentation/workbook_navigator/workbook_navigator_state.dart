@@ -42,7 +42,6 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
   bool _scriptEditorFullscreen = false;
   bool _scriptEditorSplitPreview = false;
   bool _adminWorkspaceVisible = true;
-  bool _scriptEditorMutable = true;
   WidgetBuilder? _scriptEditorOverlayBuilder;
   late int _currentPageIndex;
   final List<StoredScript> _scriptLibrary = <StoredScript>[];
@@ -67,7 +66,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
     if (_isAdmin) {
       _adminWorkspaceVisible = true;
       _initialiseCustomActions();
-      unawaited(_refreshScriptLibrary());
+      unawaited(refreshScriptLibrary());
     }
     final initialPageIndex = _manager.activePageIndex;
     final pages = _manager.workbook.pages;
@@ -116,7 +115,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
         if (!mounted) {
           return;
         }
-        unawaited(_refreshScriptLibrary());
+        unawaited(refreshScriptLibrary());
         unawaited(_loadScriptEditor());
       });
       _updateScriptTree();

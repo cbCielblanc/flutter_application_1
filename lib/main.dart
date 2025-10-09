@@ -1,8 +1,6 @@
 ﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:meta/meta.dart';
-
 import 'application/commands/workbook_command_manager.dart';
 import 'application/scripts/runtime.dart';
 import 'application/scripts/storage.dart';

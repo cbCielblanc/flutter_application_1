@@ -1,7 +1,6 @@
 import 'package:meta/meta.dart';
 
 import 'dart/dart_script_engine.dart';
-import 'descriptor.dart';
 import 'scope.dart';
 
 export 'scope.dart';

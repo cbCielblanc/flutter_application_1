@@ -9,7 +9,6 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
   List<ScriptEditorTab> get _scriptEditorTabs;
   int? get _activeScriptTabIndex;
   set _activeScriptTabIndex(int? value);
-  ScriptDescriptor? get _currentScriptDescriptor;
   set _currentScriptDescriptor(ScriptDescriptor? value);
   ScriptScope get _scriptEditorScope;
   set _scriptEditorScope(ScriptScope value);
@@ -17,27 +16,20 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
   set _scriptEditorPageName(String? value);
   String get _scriptSharedKey;
   set _scriptSharedKey(String value);
-  bool get _scriptEditorLoading;
   set _scriptEditorLoading(bool value);
-  bool get _scriptEditorMutable;
-  set _scriptEditorMutable(bool value);
   String? get _scriptEditorStatus;
   set _scriptEditorStatus(String? value);
   bool get _scriptEditorSplitPreview;
-  set _scriptEditorSplitPreview(bool value);
   bool get _scriptEditorFullscreen;
   set _scriptEditorFullscreen(bool value);
-  WidgetBuilder? get _scriptEditorOverlayBuilder;
-  set _scriptEditorOverlayBuilder(WidgetBuilder? value);
   bool get _suppressScriptEditorChanges;
   set _suppressScriptEditorChanges(bool value);
   List<_ScriptTreeNode> get _scriptTreeNodes;
   Map<String, bool> get _scriptTreeExpanded;
   Map<String, String?> get _scriptTreeParents;
-  String? get _activeScriptNodeId;
   set _activeScriptNodeId(String? value);
+  Future<void> refreshScriptLibrary({bool silent = false});
 
-  Future<void> _refreshScriptLibrary({bool silent = false});
   void _expandAncestorsForId(
     String nodeId,
     Map<String, bool> expanded, {
@@ -145,7 +137,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         template: _normaliseCustomActionTemplate(
           'Future<void> onWorkbookBeforeSave(ScriptContext context) async {\n'
           '  final payload = context.toPayload();\n'
-          '  await context.logMessage(\'Sauvegarde imminente : \${payload[\"meta\"]}\');\n'
+          '  await context.logMessage(\'Sauvegarde imminente : \${payload["meta"]}\');\n'
           '}\n',
         ),
       ),
@@ -155,7 +147,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         template: _normaliseCustomActionTemplate(
           'Future<void> onWorksheetBeforeDoubleClick(ScriptContext context) async {\n'
           '  final cell = context.toPayload()[\'cell\'] as Map<String, Object?>?;\n'
-          '  await context.logMessage(\'Double clic sur \${cell?[\'label\'] ?? \"?\"}\');\n'
+          '  await context.logMessage(\'Double clic sur \${cell?[\'label\'] ?? "?"}\');\n'
           '}\n',
         ),
       ),
@@ -181,7 +173,6 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
       setState(() {
         _activeScriptTabIndex = null;
         _currentScriptDescriptor = null;
-        _scriptEditorMutable = false;
         _scriptEditorStatus =
             'Sélectionnez un script OptimaScript à charger pour commencer.';
         _activeScriptNodeId = null;
@@ -244,7 +235,6 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         ..clear()
         ..addAll(updatedExpanded);
       _activeScriptNodeId = nodeId;
-      _scriptEditorMutable = tab.isMutable;
       _scriptEditorStatus = tab.status;
     });
   }
@@ -326,7 +316,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         debugPrint(
           'Script OptimaScript manquant pour ${tab.descriptor.fileName}. Modèle sauvegardé dans ${stored.origin}.',
         );
-        await _refreshScriptLibrary(silent: true);
+        await refreshScriptLibrary(silent: true);
       }
       if (!mounted) {
         return;
@@ -359,7 +349,6 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
               : 'Script OptimaScript chargé depuis ${stored.origin}.';
         }
         if (identical(tab, _activeScriptTab)) {
-          _scriptEditorMutable = tab.isMutable;
           _scriptEditorStatus = tab.status;
         }
       });
@@ -423,7 +412,6 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
     if (_scriptEditorTabs.isEmpty) {
       setState(() {
         _currentScriptDescriptor = null;
-        _scriptEditorMutable = false;
         _scriptEditorStatus =
             'Sélectionnez un script OptimaScript à charger pour commencer.';
         _activeScriptNodeId = null;
@@ -516,7 +504,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         validatedDocument: validated,
       );
       await _runtime.reload();
-      await _refreshScriptLibrary(silent: true);
+      await refreshScriptLibrary(silent: true);
       if (!mounted) {
         return;
       }
@@ -555,7 +543,7 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
         _scriptEditorStatus = 'Rechargement des scripts Dart...';
       });
       await _runtime.reload();
-      await _refreshScriptLibrary(silent: true);
+      await refreshScriptLibrary(silent: true);
       final activeTab = _activeScriptTab;
       if (activeTab != null) {
         await _loadTabSource(activeTab);
@@ -602,7 +590,6 @@ mixin _ScriptEditorLogic on State<WorkbookNavigator> {
       setState(() {
         _currentScriptDescriptor = null;
         _scriptEditorLoading = false;
-        _scriptEditorMutable = false;
         _scriptEditorStatus =
             'Sélectionnez un script OptimaScript à charger pour commencer.';
       });
@@ -733,7 +720,7 @@ Future<void> onInvoke(ScriptContext context) async {
             _scriptEditorStatus == null ? notice : '${_scriptEditorStatus!}\n$notice';
       });
     }
-    await _refreshScriptLibrary(silent: true);
+    await refreshScriptLibrary(silent: true);
   }
 
   void _handleExitScriptEditorFullscreen() {

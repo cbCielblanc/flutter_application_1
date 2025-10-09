@@ -545,7 +545,7 @@ class SheetSelectionState extends ChangeNotifier {
             _resolveReference(reference, stack, dependencies),
       );
       return result ?? trimmedLeading;
-    } on _UnresolvedReference catch (error) {
+    } on _UnresolvedReference {
       return 'WAIT ';
     } finally {
       stack.remove(origin);
