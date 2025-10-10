@@ -3,39 +3,88 @@ import 'package:highlight/languages/dart.dart' as highlight_dart;
 
 const List<String> _scriptCallbacks = [
   'onWorkbookOpen',
+  'onWorkbookClose',
   'onWorkbookBeforeSave',
   'onWorksheetActivate',
   'onWorksheetDeactivate',
   'onWorksheetBeforeSingleClick',
   'onWorksheetBeforeDoubleClick',
+  'onSelectionChanged',
+  'onNotesChanged',
   'onPageEnter',
+  'onPageLeave',
+  'onInvoke',
   'onCellChanged',
 ];
 
 const List<String> _scriptContextTypes = [
   'ScriptContext',
+  'ScriptDescriptor',
+  'ScriptRuntime',
+  'ScriptScope',
+  'ScriptApi',
+  'WorkbookApi',
+  'SheetApi',
+  'CellApi',
   'RangeApi',
   'RowApi',
   'ColumnApi',
   'ChartApi',
+  'CustomAction',
 ];
 
-/// Builds the OptimaScript highlighting mode by extending the base Dart mode
-/// with additional callbacks and API types from the OptimaScript runtime.
-Mode buildScriptLanguage() {
-  final Mode base = Mode.inherit(highlight_dart.dart, Mode())
-    ..refs = highlight_dart.dart.refs;
+const List<String> _dartCoreAugmentations = [
+  'Future',
+  'FutureOr',
+  'Stream',
+  'StreamSubscription',
+  'StreamController',
+  'Timer',
+  'Iterable',
+  'Iterator',
+  'List',
+  'Map',
+  'Set',
+  'Record',
+  'Symbol',
+  'Pattern',
+  'String',
+  'DateTime',
+  'Duration',
+  'RegExp',
+  'Uri',
+  'Exception',
+  'State',
+  'Widget',
+  'StatelessWidget',
+  'StatefulWidget',
+  'BuildContext',
+  'Color',
+  'Offset',
+  'Size',
+  'Rect',
+  'ThemeData',
+  'TextStyle',
+  'TextSpan',
+];
 
-  final dynamic baseKeywords = highlight_dart.dart.keywords;
-  if (baseKeywords is Map<String, dynamic>) {
-    final Map<String, dynamic> mergedKeywords =
-        Map<String, dynamic>.from(baseKeywords);
-    final String updatedBuiltIns = _mergeBuiltIns(baseKeywords['built_in']);
-    mergedKeywords['built_in'] = updatedBuiltIns;
-    base.keywords = mergedKeywords;
-  } else if (baseKeywords is String) {
+bool _initialised = false;
+
+/// Returns the customised Dart highlighting mode with OptimaScript additions.
+Mode buildScriptLanguage() {
+  if (_initialised) {
+    return highlight_dart.dart;
+  }
+
+  final Mode base = highlight_dart.dart;
+  final dynamic keywords = base.keywords;
+
+  if (keywords is Map) {
+    final dynamic existingBuiltIns = keywords['built_in'];
+    keywords['built_in'] = _mergeBuiltIns(existingBuiltIns);
+  } else if (keywords is String) {
     base.keywords = {
-      'keyword': baseKeywords,
+      'keyword': keywords,
       'built_in': _mergeBuiltIns(null),
     };
   } else {
@@ -44,6 +93,7 @@ Mode buildScriptLanguage() {
     };
   }
 
+  _initialised = true;
   return base;
 }
 
@@ -60,6 +110,7 @@ String _mergeBuiltIns(dynamic existingBuiltIns) {
   }
   builtIns.addAll(_scriptCallbacks);
   builtIns.addAll(_scriptContextTypes);
+  builtIns.addAll(_dartCoreAugmentations);
   return builtIns.join(' ');
 }
 

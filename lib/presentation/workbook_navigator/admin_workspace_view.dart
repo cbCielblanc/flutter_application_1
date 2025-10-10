@@ -4,8 +4,6 @@ const double _kWorkspaceToggleTabWidth = 36;
 const double _kWorkspaceToggleTabHeight = 48;
 const double _kLineNumberColumnWidth = 72;
 const double _kLineNumberMargin = 6;
-const int _kMinimumLineNumberDigits = 4;
-const String _kFigureSpace = '\u2007';
 const String _kWorkspaceToggleTooltip =
     'Afficher/Masquer l’espace de développement';
 
@@ -76,7 +74,7 @@ extension _AdminWorkspaceView on _WorkbookNavigatorState {
     final pages = workbook.pages;
     final isDark = theme.brightness == Brightness.dark;
     final codeTheme = CodeThemeData(
-      styles: isDark ? monokaiSublimeTheme : githubTheme,
+      styles: isDark ? vsCodeDarkTheme : vsCodeLightTheme,
     );
     final lineNumberTextStyle = theme.textTheme.bodySmall?.copyWith(
       fontFeatures: const [FontFeature.tabularFigures()],

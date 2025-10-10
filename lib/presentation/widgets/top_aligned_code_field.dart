@@ -280,6 +280,30 @@ class _CodeFieldWithAlignmentState extends State<_CodeFieldWithAlignment> {
     );
   }
 
+  Alignment _alignmentForTextAlign(
+    TextAlign textAlign,
+    TextDirection direction,
+  ) {
+    switch (textAlign) {
+      case TextAlign.center:
+        return Alignment.topCenter;
+      case TextAlign.right:
+        return Alignment.topRight;
+      case TextAlign.left:
+        return Alignment.topLeft;
+      case TextAlign.start:
+        return direction == TextDirection.rtl
+            ? Alignment.topRight
+            : Alignment.topLeft;
+      case TextAlign.end:
+        return direction == TextDirection.rtl
+            ? Alignment.topLeft
+            : Alignment.topRight;
+      case TextAlign.justify:
+        return Alignment.topLeft;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const rootKey = 'root';
@@ -309,33 +333,61 @@ class _CodeFieldWithAlignmentState extends State<_CodeFieldWithAlignment> {
       color: numberTextStyle.color ?? numberColor,
       fontSize: textStyle.fontSize,
       fontFamily: textStyle.fontFamily,
+      height: textStyle.height,
+      letterSpacing: textStyle.letterSpacing,
     );
 
     final cursorColor =
         widget.cursorColor ?? styles?[rootKey]?.color ?? defaultText;
 
-    TextField? lineNumberCol;
+    Widget? lineNumberCol;
     Container? numberCol;
 
     if (widget.lineNumbers) {
-      lineNumberCol = TextField(
-        smartQuotesType: widget.smartQuotesType,
-        scrollPadding: widget.padding,
-        style: numberTextStyle,
-        controller: _numberController,
-        enabled: false,
-        minLines: widget.minLines,
-        maxLines: widget.maxLines,
-        selectionControls: widget.selectionControls,
-        expands: widget.expands,
-        scrollController: _numberScroll,
-        decoration: InputDecoration(
-          disabledBorder: InputBorder.none,
-          isDense: widget.isDense,
-        ),
-        textAlign: widget.lineNumberStyle.textAlign,
-        textAlignVertical: widget.textAlignVertical,
-      );
+      if (_numberController == null) {
+        lineNumberCol = const SizedBox.shrink();
+      } else {
+        final textDirection = Directionality.of(context);
+        final alignment = _alignmentForTextAlign(
+          widget.lineNumberStyle.textAlign,
+          textDirection,
+        );
+
+        lineNumberCol = IgnorePointer(
+          child: ScrollConfiguration(
+            behavior:
+                ScrollConfiguration.of(context).copyWith(scrollbars: false),
+            child: SingleChildScrollView(
+              controller: _numberScroll,
+              physics: const ClampingScrollPhysics(),
+              padding: EdgeInsets.zero,
+              child: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _numberController!,
+                builder: (context, value, child) {
+                  final span = _numberController!.buildTextSpan(
+                    context: context,
+                    style: numberTextStyle,
+                    withComposing: false,
+                  );
+                  return Align(
+                    alignment: alignment,
+                    child: RichText(
+                      text: span,
+                      textAlign: widget.lineNumberStyle.textAlign,
+                      textDirection: textDirection,
+                      textHeightBehavior: const TextHeightBehavior(
+                        applyHeightToFirstAscent: false,
+                        applyHeightToLastDescent: false,
+                      ),
+                      strutStyle: StrutStyle.fromTextStyle(numberTextStyle),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      }
 
       numberCol = Container(
         width: widget.lineNumberStyle.width,
@@ -366,6 +418,7 @@ class _CodeFieldWithAlignmentState extends State<_CodeFieldWithAlignment> {
         border: InputBorder.none,
         focusedBorder: InputBorder.none,
         isDense: widget.isDense,
+        contentPadding: EdgeInsets.zero,
       ),
       cursorColor: cursorColor,
       autocorrect: false,

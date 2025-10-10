@@ -41,10 +41,7 @@ extension _ScriptEditorView on _WorkbookNavigatorState {
             theme.textTheme.bodySmall?.copyWith(
               fontFeatures: const [FontFeature.tabularFigures()],
             );
-        final padded = digits.length >= _kMinimumLineNumberDigits
-            ? digits
-            : digits.padLeft(_kMinimumLineNumberDigits, _kFigureSpace);
-        return TextSpan(text: padded, style: resolvedStyle);
+        return TextSpan(text: digits, style: resolvedStyle);
       }
 
       final field = CodeTheme(

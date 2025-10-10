@@ -5,7 +5,7 @@ Future<void> onPageEnter(ScriptContext context) async {
   sheet?.cellByLabel('A1')?.setValue('Feuille 1 ouverte');
   await context.callHost(
     'log',
-    positional: <Object?>['Entrée sur la page feuille_1 avec l\'API Dart Test XX 2.'],
+    positional: <Object?>['Entrée sur la page feuille_1 avec l\'API Dart Test XXX 3.'],
   );
 }
 

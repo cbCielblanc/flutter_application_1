@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'application/commands/workbook_command_manager.dart';
 import 'application/scripts/runtime.dart';
 import 'application/scripts/storage.dart';
+import 'application/storage/workbook_storage.dart';
 import 'domain/cell.dart';
 import 'domain/menu_page.dart';
 import 'domain/sheet.dart';
@@ -20,10 +21,11 @@ extension AppModeLabel on AppMode {
 }
 
 typedef ScriptStorageBuilder = ScriptStorage Function();
-typedef ScriptRuntimeBuilder = ScriptRuntime Function(
-  ScriptStorage storage,
-  WorkbookCommandManager commandManager,
-);
+typedef ScriptRuntimeBuilder =
+    ScriptRuntime Function(
+      ScriptStorage storage,
+      WorkbookCommandManager commandManager,
+    );
 
 void main() {
   runApp(const MyApp());
@@ -35,11 +37,13 @@ class MyApp extends StatefulWidget {
     this.workbookFactory,
     this.scriptStorageBuilder,
     this.scriptRuntimeBuilder,
+    this.workbookStorage,
   });
 
   final Workbook Function()? workbookFactory;
   final ScriptStorageBuilder? scriptStorageBuilder;
   final ScriptRuntimeBuilder? scriptRuntimeBuilder;
+  final WorkbookStorage? workbookStorage;
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -51,6 +55,7 @@ class _MyAppState extends State<MyApp> {
   AppMode _mode = AppMode.user;
   bool _isLoading = true;
   Object? _loadingError;
+  late final WorkbookStorage _workbookStorage;
 
   ScriptStorage _createScriptStorage() {
     final builder = widget.scriptStorageBuilder ?? ScriptStorage.new;
@@ -61,15 +66,29 @@ class _MyAppState extends State<MyApp> {
     ScriptStorage storage,
     WorkbookCommandManager commandManager,
   ) {
-    final builder = widget.scriptRuntimeBuilder ??
+    final builder =
+        widget.scriptRuntimeBuilder ??
         ((scriptStorage, manager) =>
             ScriptRuntime(storage: scriptStorage, commandManager: manager));
     return builder(storage, commandManager);
   }
 
+  Future<Workbook> _resolveInitialWorkbook() async {
+    final factory = widget.workbookFactory;
+    if (factory != null) {
+      return factory();
+    }
+    final stored = await _workbookStorage.load();
+    if (stored != null) {
+      return stored;
+    }
+    return _createInitialWorkbook();
+  }
+
   @override
   void initState() {
     super.initState();
+    _workbookStorage = widget.workbookStorage ?? WorkbookStorage();
     unawaited(_initialiseApp());
   }
 
@@ -96,10 +115,10 @@ class _MyAppState extends State<MyApp> {
     unawaited(previousRuntime?.dispatchWorkbookClose() ?? Future.value());
 
     try {
-      final initialWorkbook =
-          widget.workbookFactory?.call() ?? _createInitialWorkbook();
-      final commandManager =
-          WorkbookCommandManager(initialWorkbook: initialWorkbook);
+      final initialWorkbook = await _resolveInitialWorkbook();
+      final commandManager = WorkbookCommandManager(
+        initialWorkbook: initialWorkbook,
+      );
       _commandManager = commandManager;
 
       final scriptStorage = _createScriptStorage();
@@ -139,18 +158,57 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _handleSaveRequested(BuildContext context) async {
-    final runtime = _scriptRuntime;
-    if (runtime != null) {
-      await runtime.dispatchWorkbookBeforeSave();
+    try {
+      final runtime = _scriptRuntime;
+      final commandManager = _commandManager;
+      if (runtime != null) {
+        await runtime.dispatchWorkbookBeforeSave();
+      }
+      if (!mounted) {
+        return;
+      }
+      if (commandManager == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Aucun classeur disponible à enregistrer.'),
+          ),
+        );
+        return;
+      }
+      if (!_workbookStorage.isAvailable) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'La sauvegarde n\'est pas disponible sur cette plateforme.',
+            ),
+          ),
+        );
+        return;
+      }
+      final saved = await _workbookStorage.save(commandManager.workbook);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            saved
+                ? 'Classeur enregistré.'
+                : 'Échec de l\'enregistrement du classeur.',
+          ),
+        ),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Failed to save workbook state: $error\n$stackTrace');
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Erreur lors de l\'enregistrement du classeur.'),
+        ),
+      );
     }
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('La sauvegarde des feuilles est désactivée.'),
-      ),
-    );
   }
 
   Workbook _createInitialWorkbook() {
@@ -180,12 +238,10 @@ class _MyAppState extends State<MyApp> {
 
     Widget home;
     if (_isLoading) {
-      home = const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    } else if (_loadingError != null || commandManager == null || runtime == null) {
+      home = const Scaffold(body: Center(child: CircularProgressIndicator()));
+    } else if (_loadingError != null ||
+        commandManager == null ||
+        runtime == null) {
       home = Scaffold(
         body: Center(
           child: Column(
@@ -196,10 +252,7 @@ class _MyAppState extends State<MyApp> {
               const Text('Impossible de charger le classeur.'),
               if (_loadingError != null) ...[
                 const SizedBox(height: 8),
-                Text(
-                  _loadingError.toString(),
-                  textAlign: TextAlign.center,
-                ),
+                Text(_loadingError.toString(), textAlign: TextAlign.center),
               ],
               const SizedBox(height: 16),
               ElevatedButton(
@@ -283,10 +336,9 @@ class WorkbookHome extends StatelessWidget {
                       color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .outline
-                            .withOpacity(0.18),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withOpacity(0.18),
                       ),
                     ),
                     child: ClipRRect(

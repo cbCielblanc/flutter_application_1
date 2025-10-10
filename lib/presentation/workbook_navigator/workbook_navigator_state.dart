@@ -44,6 +44,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
   bool _adminWorkspaceVisible = true;
   WidgetBuilder? _scriptEditorOverlayBuilder;
   late int _currentPageIndex;
+  int? _lastVisiblePageIndex;
   final List<StoredScript> _scriptLibrary = <StoredScript>[];
   bool _scriptLibraryLoading = false;
   String? _scriptLibraryError;
@@ -77,6 +78,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
       _scriptEditorPageName = pages[safeIndex].name;
     }
     _currentPageIndex = initialPageIndex;
+    _lastVisiblePageIndex = initialPageIndex >= 0 ? initialPageIndex : null;
     _pageController = PageController(
       initialPage: initialPageIndex < 0 ? 0 : initialPageIndex,
     );
@@ -98,6 +100,7 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
       oldWidget.commandManager.removeListener(_handleManagerChanged);
       final newIndex = widget.commandManager.activePageIndex;
       _currentPageIndex = newIndex;
+      _lastVisiblePageIndex = newIndex >= 0 ? newIndex : null;
       _pageController.dispose();
       _pageController = PageController(
         initialPage: newIndex < 0 ? 0 : newIndex,
@@ -187,6 +190,9 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
     if (newIndex != _currentPageIndex) {
       _commitEditsForPage(workbook, _currentPageIndex);
       _currentPageIndex = newIndex;
+      if (newIndex < 0) {
+        _lastVisiblePageIndex = null;
+      }
       _jumpToPage(newIndex);
     }
     if (_scriptEditorScope == ScriptScope.page) {
@@ -264,25 +270,41 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
                       onPageChanged: (index) {
                         final currentWorkbook = _manager.workbook;
 
+                        int? previousIndex = _lastVisiblePageIndex;
+                        if (previousIndex == null &&
+                            _currentPageIndex >= 0 &&
+                            _currentPageIndex < currentWorkbook.pages.length &&
+                            _currentPageIndex != index) {
+                          previousIndex = _currentPageIndex;
+                        }
+                        final didChangePage =
+                            previousIndex == null || previousIndex != index;
+
+                        WorkbookPage? previousPage;
                         Sheet? previousSheet;
-                        if (_currentPageIndex >= 0 &&
-                            _currentPageIndex < currentWorkbook.pages.length) {
-                          final previousPage =
-                              currentWorkbook.pages[_currentPageIndex];
+                        if (didChangePage &&
+                            previousIndex != null &&
+                            previousIndex >= 0 &&
+                            previousIndex < currentWorkbook.pages.length) {
+                          previousPage = currentWorkbook.pages[previousIndex];
                           if (previousPage is Sheet) {
                             previousSheet = previousPage;
                           }
                           unawaited(_runtime.dispatchPageLeave(previousPage));
                         }
 
-                        _commitEditsForPage(currentWorkbook, _currentPageIndex);
+                        if (previousIndex != null &&
+                            previousIndex >= 0 &&
+                            previousIndex < currentWorkbook.pages.length) {
+                          _commitEditsForPage(currentWorkbook, previousIndex);
+                        }
 
                         _currentPageIndex = index;
 
                         if (index >= 0 && index < currentWorkbook.pages.length) {
                           final nextPage = currentWorkbook.pages[index];
                           unawaited(_runtime.ensurePageScript(nextPage));
-                          if (previousSheet != null) {
+                          if (didChangePage && previousSheet != null) {
                             unawaited(
                               _runtime.dispatchWorksheetDeactivate(
                                 sheet: previousSheet,
@@ -290,12 +312,14 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
                               ),
                             );
                           }
-                          unawaited(_runtime.dispatchPageEnter(nextPage));
+                          if (didChangePage) {
+                            unawaited(_runtime.dispatchPageEnter(nextPage));
+                          }
                           if (nextPage is Sheet) {
                             unawaited(
                               _runtime.dispatchWorksheetActivate(
                                 sheet: nextPage,
-                                previousSheet: previousSheet,
+                                previousSheet: didChangePage ? previousSheet : null,
                               ),
                             );
                           }
@@ -304,6 +328,8 @@ class _WorkbookNavigatorState extends State<WorkbookNavigator>
                             unawaited(_loadScriptEditor());
                           }
                         }
+
+                        _lastVisiblePageIndex = index;
 
                         _manager.setActivePage(index);
                       },
